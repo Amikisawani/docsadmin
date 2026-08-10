@@ -2,15 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Domains\Signatures\Models\Signature;
-use App\Domains\Signatures\Models\DocumentSignature;
+use App\Application\Signatures\SignDocumentUseCase;
 use App\Domains\Documents\Models\Document;
+use App\Domains\Signatures\Models\Signature;
+use App\Domains\Users\Models\User;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-
-use App\Application\Signatures\SignDocumentUseCase;
 
 class SignatureController extends Controller
 {
@@ -23,7 +22,7 @@ class SignatureController extends Controller
 
         $signatures = Signature::with('user')
             ->where('user_id', $request->user()->id)
-            ->when($request->type, fn($q, $type) => $q->byType($type))
+            ->when($request->type, fn ($q, $type) => $q->byType($type))
             ->orderBy('created_at', 'desc')
             ->paginate($request->per_page ?? 15);
 
@@ -72,6 +71,7 @@ class SignatureController extends Controller
     public function show(string $id): JsonResponse
     {
         $signature = Signature::with('user', 'documentSignatures')->findOrFail($id);
+
         return response()->json(['data' => $signature]);
     }
 
@@ -123,7 +123,7 @@ class SignatureController extends Controller
             'data' => [
                 'can_sign' => $user->canSignDocuments(),
                 'current_roles' => $user->getRoleNames()->values(),
-                'required_roles' => \App\Domains\Users\Models\User::signingRoles(),
+                'required_roles' => User::signingRoles(),
             ],
         ]);
     }
@@ -146,7 +146,6 @@ class SignatureController extends Controller
         ], 201);
     }
 
-
     public function verifyDocument(string $documentId): JsonResponse
     {
         $document = Document::with(['signatures.signer', 'signatures.signature'])->findOrFail($documentId);
@@ -157,7 +156,7 @@ class SignatureController extends Controller
                 'subject' => $document->subject,
                 'hash' => $document->hash,
             ],
-            'signatures' => $document->signatures->map(fn($sig) => [
+            'signatures' => $document->signatures->map(fn ($sig) => [
                 'signed_by' => $sig->signer?->name,
                 'type' => $sig->type,
                 'hash_signature' => $sig->hash_signature,

@@ -38,7 +38,7 @@ class ArchiveBoxController extends Controller
 
         $box = ArchiveBox::create(array_merge($data, [
             'created_by' => $request->user()->id,
-            'code' => 'BOX-' . strtoupper(Str::random(8)),
+            'code' => 'BOX-'.strtoupper(Str::random(8)),
         ]));
 
         return response()->json([

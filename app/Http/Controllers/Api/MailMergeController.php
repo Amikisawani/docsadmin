@@ -13,6 +13,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MailMergeController extends Controller
 {
@@ -26,14 +27,14 @@ class MailMergeController extends Controller
         'reference', 'nom_signataire', 'fonction_signataire',
     ];
 
-public function __construct(
+    public function __construct(
         private readonly RunMailMergeUseCase $runMailMergeUseCase,
         private readonly RecipientFileParser $recipientFileParser,
         private readonly SendCampaignToSignatureUseCase $sendCampaignToSignatureUseCase,
         private readonly SignMailMergeCampaignUseCase $signMailMergeCampaignUseCase,
     ) {}
 
-/** Liste les campagnes de publipostage de l'utilisateur. */
+    /** Liste les campagnes de publipostage de l'utilisateur. */
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -77,7 +78,7 @@ public function __construct(
 
         $this->authorizeBatch($batch, request()->user());
 
-        if (!$batch->current_workflow_instance_id) {
+        if (! $batch->current_workflow_instance_id) {
             return response()->json([
                 'data' => null,
                 'message' => 'Aucun workflow en cours pour cette campagne.',
@@ -134,7 +135,7 @@ public function __construct(
             $request->merge(['default_variables' => is_array($decoded) ? $decoded : []]);
         }
 
-$validated = $request->validate([
+        $validated = $request->validate([
             // Source : uniquement un document de type « publipostage »
             // Version Présidence : le workflow est optionnel → génération immédiate si absent.
             'document_id' => ['required', 'string', 'exists:documents,id'],
@@ -182,8 +183,8 @@ $validated = $request->validate([
         $firstError = $errors[0] ?? null;
 
         $message = match ($batch->status) {
-            'completed' => 'Publipostage généré : ' . $batch->generated_count . ' document(s) sur ' . $batch->total_recipients . '.',
-            'partial' => 'Publipostage partiellement généré : ' . $batch->generated_count . ' document(s) sur ' . $batch->total_recipients . '.',
+            'completed' => 'Publipostage généré : '.$batch->generated_count.' document(s) sur '.$batch->total_recipients.'.',
+            'partial' => 'Publipostage partiellement généré : '.$batch->generated_count.' document(s) sur '.$batch->total_recipients.'.',
             'awaiting_workflow' => 'Campagne de publipostage créée. Le workflow de validation du document source a été démarré.',
             default => $firstError ?: 'Échec du publipostage. Aucun document généré.',
         };
@@ -210,7 +211,8 @@ $validated = $request->validate([
             $preview = $this->recipientFileParser->preview($fullPath, $originalName);
         } catch (\Throwable $e) {
             Storage::disk('public')->delete($path);
-            return response()->json(['message' => 'Fichier illisible : ' . $e->getMessage()], 422);
+
+            return response()->json(['message' => 'Fichier illisible : '.$e->getMessage()], 422);
         }
 
         Storage::disk('public')->delete($path);
@@ -241,21 +243,21 @@ $validated = $request->validate([
     }
 
     /** Télécharge l'archive ZIP d'un batch. */
-    public function download(string $id): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function download(string $id): StreamedResponse
     {
         $batch = MailMergeBatch::with(['template', 'document', 'creator'])->findOrFail($id);
         $this->authorizeBatch($batch, request()->user());
 
-        if (!$batch->zip_path || !Storage::disk('public')->exists($batch->zip_path)) {
+        if (! $batch->zip_path || ! Storage::disk('public')->exists($batch->zip_path)) {
             abort(404, 'Archive ZIP introuvable.');
         }
 
-        $filename = ($this->slugify($batch->title ?? 'publipostage') ?: 'publipostage') . '.zip';
+        $filename = ($this->slugify($batch->title ?? 'publipostage') ?: 'publipostage').'.zip';
 
         return Storage::disk('public')->download($batch->zip_path, $filename);
     }
 
-/**
+    /**
      * Envoie une campagne de publipostage terminée à la signature.
      *
      * Le créateur (ou un admin) déclenche l'envoi : le statut passe à
@@ -275,7 +277,7 @@ $validated = $request->validate([
         ]);
     }
 
-/**
+    /**
      * Rappelle une campagne de publipostage envoyée à la signature.
      *
      * Le créateur (ou un admin) retire la campagne de la boîte du Directeur de
@@ -374,9 +376,9 @@ $validated = $request->validate([
         return response()->json(['message' => 'Campagne de publipostage supprimée.']);
     }
 
-private function authorizeBatch(MailMergeBatch $batch, ?User $user): void
+    private function authorizeBatch(MailMergeBatch $batch, ?User $user): void
     {
-        if (!$user) {
+        if (! $user) {
             return;
         }
 
@@ -386,7 +388,7 @@ private function authorizeBatch(MailMergeBatch $batch, ?User $user): void
             return;
         }
 
-        if ($batch->created_by !== $user->id && !$user->hasRole('admin')) {
+        if ($batch->created_by !== $user->id && ! $user->hasRole('admin')) {
             abort(403, 'Cette campagne ne vous appartient pas.');
         }
     }
@@ -396,8 +398,7 @@ private function authorizeBatch(MailMergeBatch $batch, ?User $user): void
         $value = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value) ?? $value;
         $value = strtolower($value);
         $value = preg_replace('/[^a-z0-9]+/', '-', $value);
+
         return trim((string) $value, '-');
     }
 }
-
-

@@ -4,7 +4,6 @@ namespace App\Events;
 
 use App\Domains\Documents\Models\Document;
 use App\Domains\Users\Models\User;
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -26,12 +25,12 @@ class DocumentSubmitted implements ShouldBroadcast
 
     public function broadcastOn(): array
     {
-        $director = \App\Domains\Users\Models\User::role('directeur_cabinet')->where('is_active', true)->first();
+        $director = User::role('directeur_cabinet')->where('is_active', true)->first();
 
         $channels = [];
 
         if ($director) {
-            $channels[] = new PrivateChannel('App.Models.User.' . $director->id);
+            $channels[] = new PrivateChannel('App.Models.User.'.$director->id);
         }
 
         return $channels;
@@ -51,7 +50,7 @@ class DocumentSubmitted implements ShouldBroadcast
             'priority' => $this->document->priority,
             'deadline' => $this->document->deadline?->toDateString(),
             'submitted_by' => $this->submittedBy->name,
-            'action_url' => '/director/documents/' . $this->document->id,
+            'action_url' => '/director/documents/'.$this->document->id,
         ];
     }
 }

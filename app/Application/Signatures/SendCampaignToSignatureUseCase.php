@@ -6,6 +6,7 @@ use App\Domains\MailMerge\Models\MailMergeBatch;
 use App\Domains\Notifications\Services\NotificationService;
 use App\Domains\Users\Models\User;
 use App\Events\CampaignSubmitted;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Envoie une campagne de publipostage générée à la signature du Directeur de Cabinet.
@@ -35,7 +36,7 @@ final class SendCampaignToSignatureUseCase
             'Seul le créateur de la campagne peut l\'envoyer à la signature.'
         );
 
-// Guard : campagne générée (completed, partial) ou en attente de workflow
+        // Guard : campagne générée (completed, partial) ou en attente de workflow
         // mais dont les documents ont déjà été générés (awaiting_workflow).
         abort_unless(
             in_array($batch->status, ['completed', 'partial', 'awaiting_workflow'], true),
@@ -60,13 +61,13 @@ final class SendCampaignToSignatureUseCase
         $this->notificationService->notifyFirstUserWithRole(
             'directeur_cabinet',
             'Campagne de documents à signer',
-            'La campagne « ' . $batch->title . ' » (' . $batch->total_recipients . ' document(s)) vous attend pour signature.',
+            'La campagne « '.$batch->title.' » ('.$batch->total_recipients.' document(s)) vous attend pour signature.',
             'info',
             [
                 'batch_id' => $batch->id,
                 'title' => $batch->title,
                 'recipients_count' => $batch->total_recipients,
-                'action_url' => '/director/campaigns/' . $batch->id,
+                'action_url' => '/director/campaigns/'.$batch->id,
             ]
         );
 
@@ -74,10 +75,10 @@ final class SendCampaignToSignatureUseCase
         try {
             broadcast(new CampaignSubmitted($batch, $actor));
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Broadcast CampaignSubmitted : ' . $e->getMessage());
+            Log::warning('Broadcast CampaignSubmitted : '.$e->getMessage());
         }
 
-// Audit
+        // Audit
         activity()
             ->causedBy($actor)
             ->performedOn($batch)
@@ -101,13 +102,13 @@ final class SendCampaignToSignatureUseCase
         $this->notificationService->notifyFirstUserWithRole(
             'directeur_cabinet',
             'Campagne de documents à signer',
-            'La campagne « ' . $batch->title . ' » (' . $batch->total_recipients . ' document(s)) vous attend pour signature.',
+            'La campagne « '.$batch->title.' » ('.$batch->total_recipients.' document(s)) vous attend pour signature.',
             'info',
             [
                 'batch_id' => $batch->id,
                 'title' => $batch->title,
                 'recipients_count' => $batch->total_recipients,
-                'action_url' => '/director/campaigns/' . $batch->id,
+                'action_url' => '/director/campaigns/'.$batch->id,
             ]
         );
 
@@ -115,7 +116,7 @@ final class SendCampaignToSignatureUseCase
         try {
             broadcast(new CampaignSubmitted($batch, $batch->creator));
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Broadcast CampaignSubmitted (auto) : ' . $e->getMessage());
+            Log::warning('Broadcast CampaignSubmitted (auto) : '.$e->getMessage());
         }
 
         // Audit

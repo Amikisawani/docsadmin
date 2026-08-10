@@ -12,8 +12,8 @@ class DepartmentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $departments = Department::with('parent', 'children')
-            ->when($request->type, fn($q, $type) => $q->ofType($type))
-            ->when($request->search, fn($q, $term) => $q->where('name', 'like', "%{$term}%"))
+            ->when($request->type, fn ($q, $type) => $q->ofType($type))
+            ->when($request->search, fn ($q, $term) => $q->where('name', 'like', "%{$term}%"))
             ->orderBy('name')
             ->paginate($request->per_page ?? 50);
 
@@ -61,7 +61,7 @@ class DepartmentController extends Controller
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
-            'code' => ['sometimes', 'string', 'max:50', 'unique:departments,code,' . $id],
+            'code' => ['sometimes', 'string', 'max:50', 'unique:departments,code,'.$id],
             'parent_id' => ['nullable', 'string', 'exists:departments,id'],
             'type' => ['sometimes', 'string', 'in:ministere,departement,direction,service,unite'],
             'description' => ['nullable', 'string'],

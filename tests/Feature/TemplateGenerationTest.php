@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Domains\Templates\Models\Template;
 use App\Domains\Users\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -101,12 +100,12 @@ class TemplateGenerationTest extends TestCase
             'category' => 'arrete',
             'description' => 'Template arrete',
             'content' => "ARRETE N° {{numero}}\nObjet : {{objet}}\nSignataire : {{signataire}}",
-            'file_path' => 'templates/arrete-' . uniqid() . '.txt',
+            'file_path' => 'templates/arrete-'.uniqid().'.txt',
             'created_by' => $user->id,
             'is_active' => true,
         ]);
 
-        $res = $this->postJson('/api/v1/templates/' . $template->id . '/generate', [
+        $res = $this->postJson('/api/v1/templates/'.$template->id.'/generate', [
             'variables' => [
                 'numero' => '2026/001',
                 'objet' => 'Nomination',
@@ -140,12 +139,12 @@ class TemplateGenerationTest extends TestCase
             'category' => 'courrier',
             'description' => '',
             'content' => 'Objet : {{objet}}',
-            'file_path' => 'templates/courrier-' . uniqid() . '.txt',
+            'file_path' => 'templates/courrier-'.uniqid().'.txt',
             'created_by' => $user->id,
             'is_active' => true,
         ]);
 
-        $res = $this->postJson('/api/v1/templates/' . $template->id . '/generate', [
+        $res = $this->postJson('/api/v1/templates/'.$template->id.'/generate', [
             'variables' => ['objet' => 'Demande de congé'],
             'format' => 'txt',
         ]);
@@ -156,4 +155,3 @@ class TemplateGenerationTest extends TestCase
         $this->assertStringContainsString('Demande de congé', Storage::disk('public')->get($path));
     }
 }
-

@@ -12,9 +12,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Workflow extends Model
 {
-    use HasUlids, SoftDeletes;
     use HasFactory;
-
+    use HasUlids, SoftDeletes;
 
     protected $fillable = [
         'name',

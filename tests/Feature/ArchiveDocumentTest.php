@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Domains\Archives\Models\Archive;
 use App\Domains\Documents\Models\Document;
 use App\Domains\Users\Models\User;
-use App\Domains\Archives\Models\Archive;
 use Tests\TestCase;
 
 class ArchiveDocumentTest extends TestCase
@@ -25,7 +25,6 @@ class ArchiveDocumentTest extends TestCase
             'reference' => 'DOC-REF-TEST-001',
         ]);
 
-
         $this->actingAs($actor, 'sanctum');
 
         $payload = [
@@ -38,7 +37,7 @@ class ArchiveDocumentTest extends TestCase
             'notes' => 'archive test',
         ];
 
-        $res = $this->postJson('/api/v1/documents/' . $document->id . '/archive', $payload);
+        $res = $this->postJson('/api/v1/documents/'.$document->id.'/archive', $payload);
         $res->assertStatus(201);
 
         $this->assertDatabaseHas('documents', [
@@ -53,9 +52,8 @@ class ArchiveDocumentTest extends TestCase
         $archive = Archive::query()->where('document_id', $document->id)->first();
         $this->assertNotNull($archive);
 
-        $verif = $this->getJson('/public/documents/verify?hash=' . urlencode($document->hash));
+        $verif = $this->getJson('/public/documents/verify?hash='.urlencode($document->hash));
         $verif->assertStatus(200);
         $verif->assertJsonPath('data.is_archived', true);
     }
 }
-

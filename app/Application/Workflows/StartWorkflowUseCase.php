@@ -8,9 +8,6 @@ use App\Domains\Users\Models\User;
 use App\Domains\Workflows\Models\Workflow;
 use App\Domains\Workflows\Models\WorkflowApproval;
 use App\Domains\Workflows\Models\WorkflowInstance;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Str;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 final class StartWorkflowUseCase
 {
@@ -21,7 +18,7 @@ final class StartWorkflowUseCase
     public function execute(array $input, User $actor): WorkflowInstance
     {
         // Guard 0: authenticated actor is required
-        if (!$actor instanceof User) {
+        if (! $actor instanceof User) {
             abort(401, 'Authentification requise.');
         }
 
@@ -32,7 +29,7 @@ final class StartWorkflowUseCase
         // Pour le publipostage, le document source est un document métier de type `mail_merge`
         // et le workflow de campagne peut être paramétré indépendamment du type métier.
         if (
-            !empty($workflow->document_type)
+            ! empty($workflow->document_type)
             && $document->flow_type !== 'mail_merge'
             && $document->document_type !== $workflow->document_type
         ) {
@@ -52,7 +49,7 @@ final class StartWorkflowUseCase
 
         $steps = collect($workflow->steps)->sortBy('order')->values();
         $firstStep = $steps->first();
-        abort_if(!$firstStep, 422, 'Workflow invalide : aucune étape.');
+        abort_if(! $firstStep, 422, 'Workflow invalide : aucune étape.');
 
         $instance = WorkflowInstance::create([
             'workflow_id' => $workflow->id,
@@ -88,14 +85,14 @@ final class StartWorkflowUseCase
         $this->notificationService->notify(
             $approver,
             'Document à approuver',
-            'Un document vous attend pour validation : ' . $document->subject,
+            'Un document vous attend pour validation : '.$document->subject,
             'info',
             [
                 'document_id' => $document->id,
                 'document_number' => $document->document_number,
                 'workflow_instance_id' => $instance->id,
                 'step' => $firstStep['name'],
-                'action_url' => '/documents/' . $document->id,
+                'action_url' => '/documents/'.$document->id,
             ]
         );
 
@@ -105,12 +102,12 @@ final class StartWorkflowUseCase
     private function resolveFirstApprover(array $firstStep, User $actor): User
     {
         // Null-safe guard: never call methods on a null actor.
-        if (!$actor instanceof User) {
+        if (! $actor instanceof User) {
             abort(401, 'Authentification requise.');
         }
 
         // If actor already matches the role, use them.
-        $role = (string)($firstStep['role'] ?? '');
+        $role = (string) ($firstStep['role'] ?? '');
         if ($role !== '' && $actor->hasRole($role)) {
             return $actor;
         }
@@ -122,7 +119,7 @@ final class StartWorkflowUseCase
                 return $actor;
             }
 
-            return \App\Domains\Users\Models\User::query()
+            return User::query()
                 ->role($role)
                 ->firstOrFail();
         } catch (\Throwable) {
@@ -130,4 +127,3 @@ final class StartWorkflowUseCase
         }
     }
 }
-

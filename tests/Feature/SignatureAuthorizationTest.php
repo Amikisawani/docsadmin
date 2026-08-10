@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Domains\Users\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SignatureAuthorizationTest extends TestCase
@@ -27,7 +26,7 @@ class SignatureAuthorizationTest extends TestCase
         $res->assertJsonPath('data.can_sign', false);
     }
 
-public function test_can_sign_endpoint_returns_false_for_admin(): void
+    public function test_can_sign_endpoint_returns_false_for_admin(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole('admin');
@@ -66,4 +65,3 @@ public function test_can_sign_endpoint_returns_false_for_admin(): void
         $res->assertJsonPath('data.can_sign', true);
     }
 }
-

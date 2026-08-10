@@ -6,6 +6,7 @@ use App\Domains\Documents\Models\Document;
 use App\Domains\Notifications\Services\NotificationService;
 use App\Domains\Users\Models\User;
 use App\Events\DocumentRejected;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Permet au Directeur de Cabinet de rejeter un document.
@@ -53,7 +54,7 @@ final class RejectForSignatureUseCase
         $document->histories()->create([
             'user_id' => $actor->id,
             'action' => 'signature_rejected',
-            'description' => 'Document rejeté par le Directeur de Cabinet : ' . $reason,
+            'description' => 'Document rejeté par le Directeur de Cabinet : '.$reason,
             'metadata' => [
                 'rejection_reason' => $reason,
                 'rejected_by' => $actor->name,
@@ -66,22 +67,22 @@ final class RejectForSignatureUseCase
             $this->notificationService->notify(
                 $author,
                 'Document rejeté',
-                'Le document « ' . $document->subject . ' » (N° ' . $document->document_number . ') a été rejeté. Motif : ' . $reason,
+                'Le document « '.$document->subject.' » (N° '.$document->document_number.') a été rejeté. Motif : '.$reason,
                 'error',
                 [
                     'document_id' => $document->id,
                     'document_number' => $document->document_number,
                     'rejection_reason' => $reason,
-                    'action_url' => '/documents/' . $document->id,
+                    'action_url' => '/documents/'.$document->id,
                 ]
             );
         }
 
-// Diffusion temps réel (WebSocket) à l'auteur du document
+        // Diffusion temps réel (WebSocket) à l'auteur du document
         try {
             broadcast(new DocumentRejected($document, $actor, $reason));
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Broadcast DocumentRejected : ' . $e->getMessage());
+            Log::warning('Broadcast DocumentRejected : '.$e->getMessage());
         }
 
         // Audit

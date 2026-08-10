@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domains\Documents\Models\Document;
 use App\Domains\MailMerge\Models\MailMergeBatch;
+use App\Domains\Users\Models\User;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -41,9 +42,9 @@ class DirectorInboxController extends Controller
         $order = $request->order ?? 'desc';
         $sort = $request->sort ?? 'submitted_for_signature_at';
 
-$documents = $query->orderBy($sort, $order)->paginate($request->per_page ?? 20);
+        $documents = $query->orderBy($sort, $order)->paginate($request->per_page ?? 20);
 
-// Campagnes de publipostage envoyées à la signature (à signer par le Directeur de Cabinet).
+        // Campagnes de publipostage envoyées à la signature (à signer par le Directeur de Cabinet).
         // On inclut aussi les campagnes générées (completed / awaiting_workflow avec documents
         // générés) pour qu'elles apparaissent tant qu'elles n'ont pas été prises en charge.
         $campaigns = MailMergeBatch::with(['creator'])
@@ -84,7 +85,7 @@ $documents = $query->orderBy($sort, $order)->paginate($request->per_page ?? 20);
                 ->whereIn('status', ['rejected'])
                 ->whereDate('updated_at', '>=', now()->subDays(7))
                 ->count(),
-'signed' => (clone $base)->where('status', 'signed')->count(),
+            'signed' => (clone $base)->where('status', 'signed')->count(),
             'campaigns_pending' => MailMergeBatch::where('status', 'pending_signature')->count(),
         ];
 
@@ -92,12 +93,12 @@ $documents = $query->orderBy($sort, $order)->paginate($request->per_page ?? 20);
     }
 
     /**
-      * Nombre de documents en attente pour le Directeur de Cabinet.
-      * Utilisé notamment par la page de connexion pour afficher « X documents en attente ».
-      */
+     * Nombre de documents en attente pour le Directeur de Cabinet.
+     * Utilisé notamment par la page de connexion pour afficher « X documents en attente ».
+     */
     public function pendingCount(): JsonResponse
     {
-        $director = \App\Domains\Users\Models\User::role('directeur_cabinet')->where('is_active', true)->first();
+        $director = User::role('directeur_cabinet')->where('is_active', true)->first();
 
         // Cette route est publique (pré-connexion) : on ne renvoie qu'un nombre agrégé.
         $count = 0;
@@ -121,8 +122,8 @@ $documents = $query->orderBy($sort, $order)->paginate($request->per_page ?? 20);
     }
 
     /**
-      * Documents rejetés récemment par le Directeur de Cabinet.
-      */
+     * Documents rejetés récemment par le Directeur de Cabinet.
+     */
     public function recentRejected(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -172,7 +173,7 @@ $documents = $query->orderBy($sort, $order)->paginate($request->per_page ?? 20);
                 'reference' => $d->document_number,
                 'author' => $d->author?->name,
                 'date' => $d->updated_at,
-                'route' => '/director/documents/' . $d->id,
+                'route' => '/director/documents/'.$d->id,
             ]);
 
         // Documents rejetés
@@ -192,7 +193,7 @@ $documents = $query->orderBy($sort, $order)->paginate($request->per_page ?? 20);
                 'author' => $d->author?->name,
                 'reason' => $d->rejection_reason,
                 'date' => $d->updated_at,
-                'route' => '/director/documents/' . $d->id,
+                'route' => '/director/documents/'.$d->id,
             ]);
 
         // Documents en attente
@@ -212,7 +213,7 @@ $documents = $query->orderBy($sort, $order)->paginate($request->per_page ?? 20);
                 'reference' => $d->document_number,
                 'author' => $d->author?->name,
                 'date' => $d->submitted_for_signature_at,
-                'route' => '/director/documents/' . $d->id,
+                'route' => '/director/documents/'.$d->id,
             ]);
 
         // Campagnes de publipostage (toutes)
@@ -239,7 +240,7 @@ $documents = $query->orderBy($sort, $order)->paginate($request->per_page ?? 20);
                 'author' => $b->creator?->name,
                 'reason' => $b->rejection_reason,
                 'date' => $b->updated_at,
-                'route' => '/director/campaigns/' . $b->id,
+                'route' => '/director/campaigns/'.$b->id,
             ]);
 
         $events = $signed->concat($rejected)->concat($pending)->concat($campaigns)

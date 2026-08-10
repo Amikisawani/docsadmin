@@ -29,7 +29,7 @@ class DocumentRejected implements ShouldBroadcast
         $channels = [];
 
         if ($this->document->author_id) {
-            $channels[] = new PrivateChannel('App.Models.User.' . $this->document->author_id);
+            $channels[] = new PrivateChannel('App.Models.User.'.$this->document->author_id);
         }
 
         return $channels;
@@ -48,7 +48,7 @@ class DocumentRejected implements ShouldBroadcast
             'subject' => $this->document->subject,
             'rejected_by' => $this->rejectedBy->name,
             'reason' => $this->reason,
-            'action_url' => '/documents/' . $this->document->id,
+            'action_url' => '/documents/'.$this->document->id,
         ];
     }
 }

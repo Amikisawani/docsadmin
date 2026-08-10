@@ -3,6 +3,7 @@
 namespace Database\Factories\Domains\Documents\Models;
 
 use App\Domains\Documents\Models\Document;
+use App\Domains\Users\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -17,7 +18,7 @@ class DocumentFactory extends Factory
             'reference' => $this->faker->optional()->word(),
             'subject' => $this->faker->sentence(4),
             'document_type' => 'note',
-            'author_id' => \App\Domains\Users\Models\User::factory(),
+            'author_id' => User::factory(),
             'department_id' => null,
             'version' => '1.0',
             'status' => 'draft',
@@ -31,4 +32,3 @@ class DocumentFactory extends Factory
         ];
     }
 }
-

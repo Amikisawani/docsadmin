@@ -2,13 +2,13 @@
 
 namespace App\Domains\Users\Models;
 
+use App\Domains\Archives\Models\Archive;
 use App\Domains\Departments\Models\Department;
 use App\Domains\Documents\Models\Document;
+use App\Domains\Notifications\Models\NotificationPreference;
 use App\Domains\Signatures\Models\Signature;
 use App\Domains\Workflows\Models\WorkflowApproval;
 use App\Domains\Workflows\Models\WorkflowInstance;
-use App\Domains\Archives\Models\Archive;
-use App\Domains\Notifications\Models\NotificationPreference;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -100,15 +100,15 @@ class User extends Authenticatable
 
     public function getAvatarUrlAttribute(): ?string
     {
-        return $this->avatar_path ? asset('storage/' . $this->avatar_path) : null;
+        return $this->avatar_path ? asset('storage/'.$this->avatar_path) : null;
     }
 
     public function getSignatureUrlAttribute(): ?string
     {
-        return $this->signature_image_path ? asset('storage/' . $this->signature_image_path) : null;
+        return $this->signature_image_path ? asset('storage/'.$this->signature_image_path) : null;
     }
 
-/**
+    /**
      * Rôles autorisés à signer un document.
      *
      * Version Présidence : le Directeur de Cabinet est le SEUL détenteur du pouvoir de signature.

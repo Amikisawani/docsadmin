@@ -6,6 +6,7 @@ use App\Domains\Documents\Models\Document;
 use App\Domains\Notifications\Services\NotificationService;
 use App\Domains\Users\Models\User;
 use App\Events\DocumentRecalled;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Permet à l'auteur d'un document de rappeler une demande de signature.
@@ -59,22 +60,22 @@ final class RecallSignatureUseCase
         $this->notificationService->notifyFirstUserWithRole(
             'directeur_cabinet',
             'Rappel : document à signer',
-            'Le document « ' . $document->subject . ' » (N° ' . $document->document_number . ') attend toujours votre signature.',
+            'Le document « '.$document->subject.' » (N° '.$document->document_number.') attend toujours votre signature.',
             'warning',
             [
                 'document_id' => $document->id,
                 'document_number' => $document->document_number,
                 'recalled_at' => now()->toIso8601String(),
                 'reminder' => true,
-                'action_url' => '/documents/' . $document->id,
+                'action_url' => '/documents/'.$document->id,
             ]
         );
 
-// Diffusion temps réel (WebSocket) au Directeur de Cabinet
+        // Diffusion temps réel (WebSocket) au Directeur de Cabinet
         try {
             broadcast(new DocumentRecalled($document, $actor));
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Broadcast DocumentRecalled : ' . $e->getMessage());
+            Log::warning('Broadcast DocumentRecalled : '.$e->getMessage());
         }
 
         // Audit

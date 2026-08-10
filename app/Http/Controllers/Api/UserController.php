@@ -14,13 +14,13 @@ class UserController extends Controller
     public function index(Request $request): JsonResponse
     {
         $users = User::with('department', 'roles')
-            ->when($request->search, fn($q, $term) => $q->where(function($q) use ($term) {
+            ->when($request->search, fn ($q, $term) => $q->where(function ($q) use ($term) {
                 $q->where('name', 'like', "%{$term}%")
-                  ->orWhere('email', 'like', "%{$term}%");
+                    ->orWhere('email', 'like', "%{$term}%");
             }))
-            ->when($request->department_id, fn($q, $id) => $q->byDepartment($id))
-            ->when($request->role, fn($q, $role) => $q->role($role))
-            ->when($request->status, fn($q, $status) => $q->where('status', $status))
+            ->when($request->department_id, fn ($q, $id) => $q->byDepartment($id))
+            ->when($request->role, fn ($q, $role) => $q->role($role))
+            ->when($request->status, fn ($q, $status) => $q->where('status', $status))
             ->orderBy($request->sort ?? 'name', $request->order ?? 'asc')
             ->paginate($request->per_page ?? 15);
 
@@ -66,7 +66,7 @@ class UserController extends Controller
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
-            'email' => ['sometimes', 'string', 'email', 'max:255', 'unique:users,email,' . $id],
+            'email' => ['sometimes', 'string', 'email', 'max:255', 'unique:users,email,'.$id],
             'password' => ['sometimes', 'string', 'min:8'],
             'department_id' => ['nullable', 'string', 'exists:departments,id'],
             'job_title' => ['nullable', 'string', 'max:255'],

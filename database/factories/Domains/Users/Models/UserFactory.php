@@ -2,7 +2,6 @@
 
 namespace Database\Factories\Domains\Users\Models;
 
-use App\Domains\Departments\Models\Department;
 use App\Domains\Users\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -28,4 +27,3 @@ class UserFactory extends Factory
         ];
     }
 }
-

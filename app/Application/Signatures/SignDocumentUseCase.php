@@ -7,7 +7,7 @@ use App\Domains\Signatures\Models\DocumentSignature;
 use App\Domains\Signatures\Models\Signature;
 use App\Domains\Users\Models\User;
 use App\Events\DocumentSigned;
-use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
 
 final class SignDocumentUseCase
 {
@@ -17,43 +17,63 @@ final class SignDocumentUseCase
 
     private function parseBrowser(?string $userAgent): ?string
     {
-        if (!$userAgent) return null;
-        if (str_contains($userAgent, 'Edg/')) return 'Microsoft Edge';
-        if (str_contains($userAgent, 'Chrome/')) return 'Google Chrome';
-        if (str_contains($userAgent, 'Firefox/')) return 'Mozilla Firefox';
-        if (str_contains($userAgent, 'Safari/')) return 'Apple Safari';
-        if (str_contains($userAgent, 'MSIE') || str_contains($userAgent, 'Trident/')) return 'Internet Explorer';
+        if (! $userAgent) {
+            return null;
+        }
+        if (str_contains($userAgent, 'Edg/')) {
+            return 'Microsoft Edge';
+        }
+        if (str_contains($userAgent, 'Chrome/')) {
+            return 'Google Chrome';
+        }
+        if (str_contains($userAgent, 'Firefox/')) {
+            return 'Mozilla Firefox';
+        }
+        if (str_contains($userAgent, 'Safari/')) {
+            return 'Apple Safari';
+        }
+        if (str_contains($userAgent, 'MSIE') || str_contains($userAgent, 'Trident/')) {
+            return 'Internet Explorer';
+        }
+
         return 'Inconnu';
     }
 
     private function parseDevice(?string $userAgent): ?string
     {
-        if (!$userAgent) return null;
-        if (str_contains($userAgent, 'Mobile') || str_contains($userAgent, 'Android')) return 'Mobile';
-        if (str_contains($userAgent, 'Tablet') || str_contains($userAgent, 'iPad')) return 'Tablette';
+        if (! $userAgent) {
+            return null;
+        }
+        if (str_contains($userAgent, 'Mobile') || str_contains($userAgent, 'Android')) {
+            return 'Mobile';
+        }
+        if (str_contains($userAgent, 'Tablet') || str_contains($userAgent, 'iPad')) {
+            return 'Tablette';
+        }
+
         return 'Bureau';
     }
 
     public function execute(array $input, User $actor): DocumentSignature
     {
-        $documentId = (string)($input['document_id'] ?? '');
-        $signatureId = (string)($input['signature_id'] ?? '');
+        $documentId = (string) ($input['document_id'] ?? '');
+        $signatureId = (string) ($input['signature_id'] ?? '');
         $position = $input['position'] ?? null;
-        $isMailMerge = (bool)($input['is_mail_merge'] ?? false);
-        $pages = max(1, (int)($input['pages'] ?? 1));
+        $isMailMerge = (bool) ($input['is_mail_merge'] ?? false);
+        $pages = max(1, (int) ($input['pages'] ?? 1));
 
         // Guard: seuls les rôles hiérarchiques autorisés peuvent signer
         abort_unless(
             $actor->canSignDocuments(),
             403,
-            'Cette action est réservée aux rôles : ' . implode(', ', User::signingRoles())
+            'Cette action est réservée aux rôles : '.implode(', ', User::signingRoles())
         );
 
         $document = Document::query()->findOrFail($documentId);
         $signature = Signature::query()->findOrFail($signatureId);
 
         // Guard: signature belongs to actor
-        abort_unless((string)$signature->user_id === (string)$actor->id, 403, 'Cette signature ne vous appartient pas.');
+        abort_unless((string) $signature->user_id === (string) $actor->id, 403, 'Cette signature ne vous appartient pas.');
 
         // Guard: idempotence - prevent duplicate signature record by (document, signature)
         $existing = DocumentSignature::query()
@@ -66,13 +86,13 @@ final class SignDocumentUseCase
         }
 
         // Guard: document must not be deleted
-        abort_unless((bool)$document->is_deleted === false, 409, 'Document supprimé.');
+        abort_unless((bool) $document->is_deleted === false, 409, 'Document supprimé.');
 
         // Generate cryptographic hash of the document
         $hashSignature = hash_hmac(
             'sha256',
-            (string)$document->hash,
-            $actor->id . now()->toIso8601String()
+            (string) $document->hash,
+            $actor->id.now()->toIso8601String()
         );
 
         $docSignature = DocumentSignature::create([
@@ -91,7 +111,7 @@ final class SignDocumentUseCase
         $historyData = [
             'user_id' => $actor->id,
             'action' => 'signed',
-            'description' => 'Document signé - ' . $signature->type,
+            'description' => 'Document signé - '.$signature->type,
             'metadata' => [
                 'signature_type' => $signature->type,
                 'signature_id' => $signature->id,
@@ -123,10 +143,10 @@ final class SignDocumentUseCase
             $signedPdfPath = $this->signedPdfGenerator->generate($document, $signature, $actor, $position);
         } catch (\Throwable $e) {
             $signedPdfPath = null;
-            \Illuminate\Support\Facades\Log::warning('PDF signé non généré : ' . $e->getMessage());
+            Log::warning('PDF signé non généré : '.$e->getMessage());
         }
 
-// Update document status
+        // Update document status
         $document->update([
             'status' => 'signed',
             'signed_pdf_path' => $signedPdfPath,
@@ -136,10 +156,9 @@ final class SignDocumentUseCase
         try {
             broadcast(new DocumentSigned($document, $actor));
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Broadcast DocumentSigned : ' . $e->getMessage());
+            Log::warning('Broadcast DocumentSigned : '.$e->getMessage());
         }
 
         return $docSignature->load(['document', 'signature', 'signer']);
     }
 }
-

@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Api\ArchiveController;
 use App\Http\Controllers\Api\ArchiveBoxController;
+use App\Http\Controllers\Api\ArchiveController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
@@ -29,7 +29,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
 
-// ==================== AUTHENTIFICATION ====================
+    // ==================== AUTHENTIFICATION ====================
     Route::prefix('auth')->group(function () {
         // Endpoints non authentifiés : limités pour prévenir le bruteforce.
         Route::middleware('throttle:auth')->group(function () {
@@ -73,14 +73,13 @@ Route::prefix('v1')->group(function () {
         Route::get('documents/{document}/attachments', [DocumentController::class, 'attachments']);
         Route::post('documents/{document}/attachments', [DocumentController::class, 'uploadAttachment']);
         Route::delete('documents/{document}/attachments/{attachment}', [DocumentController::class, 'deleteAttachment']);
-Route::post('documents/{document}/archive', [DocumentController::class, 'archive']);
+        Route::post('documents/{document}/archive', [DocumentController::class, 'archive']);
         Route::get('documents/{document}/workflow-progress', [DocumentController::class, 'workflowProgress']);
         // ---- WORKFLOW « ENVOI À LA SIGNATURE » (Directeur de Cabinet) ----
         Route::post('documents/{document}/submit-for-signature', [DocumentController::class, 'submitForSignature']);
         Route::post('documents/{document}/recall-signature', [DocumentController::class, 'recallSignature']);
         Route::post('documents/{document}/reject', [DocumentController::class, 'rejectForSignature']);
         Route::post('documents/{document}/sign', [DocumentController::class, 'signByDirector']);
-
 
         // ---- TEMPLATES (MODÈLES) ----
         Route::get('templates/variables', [TemplateController::class, 'variables']);
@@ -108,12 +107,12 @@ Route::post('documents/{document}/archive', [DocumentController::class, 'archive
         Route::get('mail-merge/variables', [MailMergeController::class, 'variables']);
         Route::get('mail-merge/{batch}/download', [MailMergeController::class, 'download']);
         Route::get('mail-merge/{batch}/workflow-progress', [MailMergeController::class, 'workflowProgress']);
-Route::post('mail-merge/{batch}/sign', [MailMergeController::class, 'sign']);
+        Route::post('mail-merge/{batch}/sign', [MailMergeController::class, 'sign']);
         Route::post('mail-merge/{batch}/recall-signature', [MailMergeController::class, 'recallSignature']);
         Route::post('mail-merge/{batch}/sign-campaign', [MailMergeController::class, 'signCampaign']);
         Route::apiResource('mail-merge', MailMergeController::class)->parameters(['mail-merge' => 'batch']);
 
-// ---- ARCHIVES ----
+        // ---- ARCHIVES ----
         // Le paramètre 'archive_box' est important pour le route model binding dans UpdateArchiveBoxRequest
         Route::apiResource('archive-boxes', ArchiveBoxController::class)->parameters(['archive-boxes' => 'archive_box']);
         Route::get('archives/eligible-documents', [ArchiveController::class, 'eligibleDocuments']);
@@ -128,12 +127,12 @@ Route::post('mail-merge/{batch}/sign', [MailMergeController::class, 'sign']);
         Route::get('notifications', [NotificationController::class, 'index']);
 
         // ---- BOÎTE DE RÉCEPTION DU DIRECTEUR DE CABINET ----
-Route::get('director/inbox', [DirectorInboxController::class, 'index']);
+        Route::get('director/inbox', [DirectorInboxController::class, 'index']);
         Route::get('director/stats', [DirectorInboxController::class, 'stats']);
         Route::get('director/history', [DirectorInboxController::class, 'history']);
         Route::get('director/recent-rejected', [DirectorInboxController::class, 'recentRejected']);
 
-// ---- AUDIT / JOURNAL ----
+        // ---- AUDIT / JOURNAL ----
         Route::get('audit/events', [AuditController::class, 'events']);
         Route::get('audit/stats', [AuditController::class, 'stats']);
         Route::get('audit/signatures-history', [AuditController::class, 'signatures']);
