@@ -397,7 +397,7 @@ const canRecall = computed(() => {
 
 const canRemind = computed(() => {
   const instance = document.value?.currentWorkflowInstance;
-  if (!instance || instance.status !== 'pending') return false;
+  if (!instance || instance.status !== 'in_progress') return false;
   
   // Seul l'auteur ou un admin peut rappeler
   const isDocAuthor = document.value?.author_id === authStore.user?.id;

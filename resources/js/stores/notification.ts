@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import apiClient from '../utils/axios';
 import type { AppNotification } from '../types';
-import type Echo from 'laravel-echo';
+import type { EchoInstance } from '../echo';
 import { useAuthStore } from './auth';
 
 export const useNotificationStore = defineStore('notification', () => {
@@ -75,7 +75,7 @@ export const useNotificationStore = defineStore('notification', () => {
      *   - document.rejected   (rejeté)
      *   - document.recalled   (rappelé)
      */
-    function startRealtime(echo: Echo) {
+    function startRealtime(echo: EchoInstance) {
         const authStore = useAuthStore();
         const userId = authStore.user?.id;
         if (!userId || realtimeBound) return;

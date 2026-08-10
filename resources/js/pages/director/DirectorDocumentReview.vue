@@ -86,12 +86,13 @@
           </dl>
         </div>
 
-        <div class="dir-card dir-decision" v-if="campaign.status !== 'signed'">
+        <div class="dir-card dir-signed-note" v-if="campaign.status === 'signed'">
+          ✅ Cette campagne a déjà été signée.
+        </div>
+
+        <div class="dir-card dir-decision" v-else>
           <h3 class="dir-card-title">Signature de la campagne</h3>
-          <div v-if="campaign.status === 'signed'" class="dir-signed-note">
-            ✅ Cette campagne a déjà été signée.
-          </div>
-          <div v-else class="dir-decision-actions">
+          <div class="dir-decision-actions">
             <label class="dir-reject-label">Votre signature</label>
             <select v-model="selectedSignatureId" class="dir-textarea">
               <option value="" disabled>Sélectionnez une signature</option>
@@ -143,7 +144,7 @@
           <div class="dir-preview-wrap">
             <iframe
               v-if="isPdfPreview"
-              :src="previewFileUrl"
+              :src="previewFileUrl ?? undefined"
               class="dir-preview-iframe"
             ></iframe>
             <div v-else class="dir-preview-fallback">
@@ -402,11 +403,11 @@ function priorityLabel(p?: string): string {
 function priorityClass(p?: string): string {
   return p === "urgente" ? "urgent" : p === "haute" ? "high" : "normal";
 }
-function formatDate(d?: string): string {
+function formatDate(d?: string | null): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
 }
-function formatDateTime(d?: string): string {
+function formatDateTime(d?: string | null): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }

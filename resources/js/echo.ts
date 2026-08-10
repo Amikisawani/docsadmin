@@ -8,14 +8,16 @@ import { useAuthStore } from './stores/auth';
  * applicative n'est configurée (ex. BROADCAST_CONNECTION=log en dev),
  * on renvoie `null` et l'application retombe sur le polling classique.
  */
-let echoInstance: Echo | null = null;
+export type EchoInstance = Echo<'reverb' | 'pusher'>;
+
+let echoInstance: EchoInstance | null = null;
 
 export function getEchoToken(): string | null {
     const authStore = useAuthStore();
     return authStore.token || localStorage.getItem('token');
 }
 
-export function initEcho(): Echo | null {
+export function initEcho(): EchoInstance | null {
     if (echoInstance) return echoInstance;
 
     const key = import.meta.env.VITE_REVERB_APP_KEY || import.meta.env.VITE_PUSHER_APP_KEY;
@@ -48,7 +50,7 @@ export function initEcho(): Echo | null {
     return echoInstance;
 }
 
-export function getEcho(): Echo | null {
+export function getEcho(): EchoInstance | null {
     return echoInstance;
 }
 

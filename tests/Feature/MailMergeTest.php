@@ -173,7 +173,10 @@ class MailMergeTest extends TestCase
         $this->assertSame('completed', $approve->status);
 
         $batch = \App\Domains\MailMerge\Models\MailMergeBatch::findOrFail($batchId);
-        $this->assertSame('completed', $batch->status);
+        // Une fois les documents générés, la campagne part automatiquement à la
+        // signature du Directeur de Cabinet (elle n'est donc pas « completed »).
+        $this->assertSame('pending_signature', $batch->status);
+        $this->assertNotNull($batch->submitted_for_signature_at);
         $this->assertSame(2, $batch->generated_count);
         $this->assertCount(2, $batch->recipients);
 
