@@ -4,6 +4,7 @@ namespace App\Domains\Documents\Actions;
 
 use App\Domains\Documents\Models\Document;
 use App\Domains\Documents\Models\DocumentHistory;
+use App\Domains\Users\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -34,7 +35,7 @@ class CreateDocumentAction
                 'confidentiality' => $data['confidentiality'] ?? 'interne',
                 'document_date' => $data['document_date'] ?? now(),
                 'content' => $data['content'] ?? null,
-                'hash' => hash('sha256', ($data['content'] ?? '') . now()->toIso8601String()),
+                'hash' => hash('sha256', ($data['content'] ?? '').now()->toIso8601String()),
             ]);
 
             // Log creation
@@ -52,7 +53,7 @@ class CreateDocumentAction
             // causedBy() must receive a Model instance (not an ID string),
             // otherwise spatie/laravel-activitylog's CauserResolver tries to
             // resolve the provider and hits method_exists(null, ...).
-            if ($user = \App\Domains\Users\Models\User::find($userId)) {
+            if ($user = User::find($userId)) {
                 activity()
                     ->performedOn($document)
                     ->causedBy($user)
@@ -60,7 +61,7 @@ class CreateDocumentAction
                     ->log('document_created');
             }
 
-// Version Présidence : plus de démarrage automatique de workflow.
+            // Version Présidence : plus de démarrage automatique de workflow.
             // Le document reste en « brouillon » ; l'auteur l'envoie ensuite
             // explicitement à la signature du Directeur de Cabinet.
 

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import apiClient from '../utils/axios';
 import type { Document, MailMergeBatch } from '../types';
-import type Echo from 'laravel-echo';
+import type { EchoInstance } from '../echo';
 import { useAuthStore } from './auth';
 
 export const useDirectorInboxStore = defineStore('directorInbox', () => {
@@ -94,7 +94,7 @@ const { data } = await apiClient.get('/director/inbox', { params });
         return data;
     }
 
-    function bindRealtime(echo: Echo) {
+    function bindRealtime(echo: EchoInstance) {
         if (realtimeBound) return;
         const authStore = useAuthStore();
         const userId = authStore.user?.id;

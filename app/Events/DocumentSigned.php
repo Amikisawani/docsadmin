@@ -28,7 +28,7 @@ class DocumentSigned implements ShouldBroadcast
         $channels = [];
 
         if ($this->document->author_id) {
-            $channels[] = new PrivateChannel('App.Models.User.' . $this->document->author_id);
+            $channels[] = new PrivateChannel('App.Models.User.'.$this->document->author_id);
         }
 
         return $channels;
@@ -46,7 +46,7 @@ class DocumentSigned implements ShouldBroadcast
             'document_number' => $this->document->document_number,
             'subject' => $this->document->subject,
             'signed_by' => $this->signedBy->name,
-            'action_url' => '/documents/' . $this->document->id,
+            'action_url' => '/documents/'.$this->document->id,
         ];
     }
 }

@@ -10,6 +10,7 @@ use App\Domains\MailMerge\Models\MailMergeRecipient;
 use App\Domains\Templates\Models\Template;
 use App\Domains\Users\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\PhpWord;
 use Throwable;
@@ -58,7 +59,7 @@ final class RunMailMergeUseCase
         ?RecipientFileParser $recipientFileParser = null,
         ?StartWorkflowUseCase $startWorkflowUseCase = null,
     ) {
-        $this->recipientFileParser = $recipientFileParser ?? new RecipientFileParser();
+        $this->recipientFileParser = $recipientFileParser ?? new RecipientFileParser;
         $this->startWorkflowUseCase = $startWorkflowUseCase ?? app(StartWorkflowUseCase::class);
     }
 
@@ -84,7 +85,7 @@ final class RunMailMergeUseCase
         //  - Si un workflow est fourni, on le démarre sur le document source.
         //    La génération n'aura lieu qu'une fois le workflow validé (document approuvé/signé).
         //  - Sinon (workflow optionnel), on génère immédiatement les documents personnalisés.
-        if (!empty($batch->workflow_id) && !empty($batch->document_id)) {
+        if (! empty($batch->workflow_id) && ! empty($batch->document_id)) {
             try {
                 $instance = $this->startWorkflowUseCase->execute([
                     'workflow_id' => $batch->workflow_id,
@@ -97,7 +98,7 @@ final class RunMailMergeUseCase
             } catch (Throwable $e) {
                 $batch->update([
                     'status' => 'failed',
-                    'errors' => ['Impossible de démarrer le workflow : ' . $e->getMessage()],
+                    'errors' => ['Impossible de démarrer le workflow : '.$e->getMessage()],
                     'completed_at' => now(),
                 ]);
 
@@ -106,7 +107,7 @@ final class RunMailMergeUseCase
         }
 
         // Si un workflow est en cours, on attend sa validation pour générer.
-        if (!empty($batch->workflow_id) && !empty($batch->document_id)) {
+        if (! empty($batch->workflow_id) && ! empty($batch->document_id)) {
             try {
                 $this->assertWorkflowReady($batch);
             } catch (Throwable $e) {
@@ -134,7 +135,7 @@ final class RunMailMergeUseCase
 
         $document = Document::query()->findOrFail($batch->document_id);
 
-        if (!in_array($document->status, ['approved', 'signed'], true)) {
+        if (! in_array($document->status, ['approved', 'signed'], true)) {
             throw new \RuntimeException(
                 "Le workflow de validation du publipostage n'est pas terminé (statut document : {$document->status})."
             );
@@ -183,23 +184,23 @@ final class RunMailMergeUseCase
         $errors = [];
 
         foreach ($recipients as $index => $recipientData) {
-            $name = (string) ($recipientData['name'] ?? ('Destinataire ' . ($index + 1)));
+            $name = (string) ($recipientData['name'] ?? ('Destinataire '.($index + 1)));
             $destinataire = (string) ($recipientData['destinataire'] ?? $name);
             $variables = array_merge($globalVars, (array) ($recipientData['variables'] ?? []));
 
             $recipient = $batch->recipients()->where('name', $name)->first();
-            if (!$recipient) {
+            if (! $recipient) {
                 $recipient = MailMergeRecipient::create([
                     'batch_id' => $batch->id,
                     'name' => $name,
                     'destinataire' => $destinataire,
-                    'variables' => !empty($variables) ? $variables : null,
+                    'variables' => ! empty($variables) ? $variables : null,
                     'status' => 'pending',
                 ]);
             } else {
                 $recipient->update([
                     'destinataire' => $destinataire,
-                    'variables' => !empty($variables) ? $variables : null,
+                    'variables' => ! empty($variables) ? $variables : null,
                     'status' => 'pending',
                 ]);
             }
@@ -228,16 +229,16 @@ final class RunMailMergeUseCase
             $zipPath = $this->buildZip($batch);
         }
 
-$batch->update([
+        $batch->update([
             'status' => $failed === 0 ? 'completed' : ($generated > 0 ? 'partial' : 'failed'),
             'generated_count' => $generated,
             'failed_count' => $failed,
             'zip_path' => $zipPath,
-            'errors' => !empty($errors) ? $errors : null,
+            'errors' => ! empty($errors) ? $errors : null,
             'completed_at' => now(),
         ]);
 
-// Version Présidence (flux automatisé) :
+        // Version Présidence (flux automatisé) :
         // Dès qu'au moins un document a été généré (avec ou sans workflow),
         // la campagne est automatiquement envoyée à la signature du Directeur
         // de Cabinet pour qu'elle apparaisse dans sa boîte de validation.
@@ -252,11 +253,11 @@ $batch->update([
             ]);
 
             try {
-                app(\App\Application\Signatures\SendCampaignToSignatureUseCase::class)
+                app(SendCampaignToSignatureUseCase::class)
                     ->notifyDirector($batch);
             } catch (Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning(
-                    'Notification auto-campagne à signer : ' . $e->getMessage()
+                Log::warning(
+                    'Notification auto-campagne à signer : '.$e->getMessage()
                 );
             }
         }
@@ -268,7 +269,7 @@ $batch->update([
     private function resolveSourceContent(MailMergeBatch $batch, array $input): string
     {
         // 1) Document source (draft, approuvé ou signé — génération immédiate possible)
-        if (!empty($batch->document_id)) {
+        if (! empty($batch->document_id)) {
             $document = Document::query()->findOrFail($batch->document_id);
 
             // Contenu texte du document
@@ -290,7 +291,7 @@ $batch->update([
         }
 
         // 2) Fichier source uploadé
-        if (!empty($batch->source_file_path) && Storage::disk('public')->exists($batch->source_file_path)) {
+        if (! empty($batch->source_file_path) && Storage::disk('public')->exists($batch->source_file_path)) {
             $path = Storage::disk('public')->path($batch->source_file_path);
             $ext = strtolower(pathinfo($batch->source_file_path, PATHINFO_EXTENSION));
 
@@ -302,9 +303,9 @@ $batch->update([
         }
 
         // 3) Template pré-enregistré (rétro-compatibilité)
-        if (!empty($batch->template_id)) {
+        if (! empty($batch->template_id)) {
             $template = Template::query()->findOrFail($batch->template_id);
-            if (!empty($template->content)) {
+            if (! empty($template->content)) {
                 return (string) $template->content;
             }
             if ($template->file_path && Storage::disk('public')->exists($template->file_path)) {
@@ -335,7 +336,7 @@ $batch->update([
                 ],
                 [
                     'destinataire' => $destinataire,
-                    'variables' => !empty($variables) ? $variables : null,
+                    'variables' => ! empty($variables) ? $variables : null,
                     'status' => 'pending',
                 ]
             );
@@ -360,7 +361,7 @@ $batch->update([
     /** Résout la liste des destinataires (fichier parsé ou liste directe). */
     private function resolveRecipients(MailMergeBatch $batch, array $input): array
     {
-        if (!empty($batch->recipients_file_path) && Storage::disk('public')->exists($batch->recipients_file_path)) {
+        if (! empty($batch->recipients_file_path) && Storage::disk('public')->exists($batch->recipients_file_path)) {
             $path = Storage::disk('public')->path($batch->recipients_file_path);
             $originalName = basename($batch->recipients_file_path);
 
@@ -382,7 +383,7 @@ $batch->update([
         ];
 
         foreach ($fills as $key => $value) {
-            if (!empty($value)) {
+            if (! empty($value)) {
                 $defaults[$key] = (string) $value;
             }
         }
@@ -409,13 +410,13 @@ $batch->update([
         }
 
         foreach ($variables as $key => $value) {
-            $content = str_replace('{{' . $key . '}}', (string) ($value ?? ''), $content);
+            $content = str_replace('{{'.$key.'}}', (string) ($value ?? ''), $content);
         }
 
-        $dir = 'mailmerge/' . $batch->id . '/' . $this->slugify($name);
+        $dir = 'mailmerge/'.$batch->id.'/'.$this->slugify($name);
         $slug = $this->slugify($name) ?: 'destinataire';
-        $filename = $slug . '-' . uniqid() . '.' . $format;
-        $path = $dir . '/' . $filename;
+        $filename = $slug.'-'.uniqid().'.'.$format;
+        $path = $dir.'/'.$filename;
         $disk = Storage::disk('public');
 
         if ($format === 'pdf') {
@@ -423,7 +424,7 @@ $batch->update([
             $pdf = Pdf::loadHTML($html);
             $disk->put($path, $pdf->output());
         } elseif ($format === 'docx') {
-            $phpWord = new PhpWord();
+            $phpWord = new PhpWord;
             $section = $phpWord->addSection();
             foreach (preg_split('/\r\n|\r|\n/', $content) as $line) {
                 $section->addText($line);
@@ -442,7 +443,7 @@ $batch->update([
     /** Extrait le texte d'un fichier DOCX (via ZIP + XML). */
     private function extractDocxText(string $fullPath): string
     {
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($fullPath) !== true) {
             return '';
         }
@@ -453,7 +454,7 @@ $batch->update([
                 return '';
             }
 
-            $doc = new \DOMDocument();
+            $doc = new \DOMDocument;
             @$doc->loadXML($xml);
             $paragraphs = [];
 
@@ -491,7 +492,7 @@ $batch->update([
     {
         $disk = Storage::disk('public');
         $zipTmp = tempnam(sys_get_temp_dir(), 'afzip');
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
 
         if ($zip->open($zipTmp, ZipArchive::CREATE) !== true) {
             throw new \RuntimeException("Impossible de créer l'archive ZIP.");
@@ -503,7 +504,7 @@ $batch->update([
                 $basename = basename($recipient->output_path);
                 $zipName = $this->slugify((string) ($recipient->destinataire ?: $recipient->name)) ?: 'publipostage';
                 $zip->addFromString(
-                    $zipName . '-' . $basename,
+                    $zipName.'-'.$basename,
                     (string) $disk->get($recipient->output_path)
                 );
                 $added++;
@@ -518,7 +519,7 @@ $batch->update([
             return null;
         }
 
-        $zipPath = 'mailmerge/zip-' . $batch->id . '-' . uniqid() . '.zip';
+        $zipPath = 'mailmerge/zip-'.$batch->id.'-'.uniqid().'.zip';
         $disk->put($zipPath, (string) file_get_contents($zipTmp));
         @unlink($zipTmp);
 
@@ -527,20 +528,20 @@ $batch->update([
 
     private function defaultTitle(array $input): string
     {
-        if (!empty($input['title'])) {
+        if (! empty($input['title'])) {
             return (string) $input['title'];
         }
 
-        if (!empty($input['document_id'])) {
+        if (! empty($input['document_id'])) {
             $doc = Document::query()->find($input['document_id']);
 
-            return $doc ? ('Publipostage – ' . $doc->subject) : 'Publipostage';
+            return $doc ? ('Publipostage – '.$doc->subject) : 'Publipostage';
         }
 
-        if (!empty($input['template_id'])) {
+        if (! empty($input['template_id'])) {
             $template = Template::query()->find($input['template_id']);
 
-            return $template ? ('Publipostage – ' . $template->name) : 'Publipostage';
+            return $template ? ('Publipostage – '.$template->name) : 'Publipostage';
         }
 
         return 'Publipostage';

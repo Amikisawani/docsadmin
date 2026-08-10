@@ -5,13 +5,14 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class RoleAndPermissionSeeder extends Seeder
 {
     public function run(): void
     {
         // Reset cached roles and permissions
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         // ==================== PERMISSIONS ====================
         $permissions = [
@@ -69,7 +70,7 @@ class RoleAndPermissionSeeder extends Seeder
             'archives.read',
         ]);
 
-$director = Role::firstOrCreate(['name' => 'directeur', 'guard_name' => 'web']);
+        $director = Role::firstOrCreate(['name' => 'directeur', 'guard_name' => 'web']);
         $director->givePermissionTo([
             'documents.create', 'documents.read', 'documents.update',
             'users.read',
@@ -122,19 +123,19 @@ $director = Role::firstOrCreate(['name' => 'directeur', 'guard_name' => 'web']);
             'reports.read',
         ]);
 
-// ==================== ROLES HIÉRARCHIQUES ====================
+        // ==================== ROLES HIÉRARCHIQUES ====================
         // Pyramide administrative de la Présidence.
         // Version Présidence : le Directeur de Cabinet est le SEUL détenteur du pouvoir de signature.
         $hierarchicalRoles = [
-            'directeur_cabinet'    => 'Directeur de Cabinet',
-            'secretaire_general'   => 'Secrétaire Général',
+            'directeur_cabinet' => 'Directeur de Cabinet',
+            'secretaire_general' => 'Secrétaire Général',
             'secretaire_general_adjoint' => 'Secrétaire Général Adjoint',
-            'directeur'            => 'Directeur',
+            'directeur' => 'Directeur',
             'directeur_chef_service' => 'Directeur Chef de Service',
-            'chef_division'        => 'Chef de Division',
-            'chef_bureau'          => 'Chef de Bureau',
+            'chef_division' => 'Chef de Division',
+            'chef_bureau' => 'Chef de Bureau',
             'agent_administration' => 'Agent d\'Administration',
-            'huissier'             => 'Huissier',
+            'huissier' => 'Huissier',
         ];
 
         // Rôle autorisé à signer un document : UNIQUEMENT le Directeur de Cabinet.

@@ -4,6 +4,7 @@ namespace App\Domains\Documents\Models;
 
 use App\Domains\Archives\Models\Archive;
 use App\Domains\Archives\Models\DocumentAttachment;
+use App\Domains\Departments\Models\Department;
 use App\Domains\Signatures\Models\DocumentSignature;
 use App\Domains\Users\Models\User;
 use App\Domains\Workflows\Models\Workflow;
@@ -17,8 +18,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Document extends Model
 {
-    use HasUlids;
     use HasFactory;
+    use HasUlids;
 
     protected $fillable = [
         'document_number',
@@ -36,7 +37,7 @@ class Document extends Model
         'content',
         'workflow_id',
         'current_workflow_instance_id',
-'source_file_path',
+        'source_file_path',
         'signed_pdf_path',
         'hash',
         'qr_code_path',
@@ -65,7 +66,7 @@ class Document extends Model
 
     public function department(): BelongsTo
     {
-        return $this->belongsTo(\App\Domains\Departments\Models\Department::class);
+        return $this->belongsTo(Department::class);
     }
 
     public function attachments(): HasMany
@@ -137,4 +138,3 @@ class Document extends Model
         });
     }
 }
-

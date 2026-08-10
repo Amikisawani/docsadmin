@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domains\Users\Models\User;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,11 +13,11 @@ class AuditController extends Controller
     public function index(Request $request): JsonResponse
     {
         $logs = Activity::with('causer')
-            ->when($request->search, fn($q, $term) => $q->where('description', 'like', "%{$term}%"))
-            ->when($request->event, fn($q, $event) => $q->where('description', $event))
-            ->when($request->user_id, fn($q, $id) => $q->where('causer_id', $id))
-            ->when($request->date_from, fn($q, $date) => $q->whereDate('created_at', '>=', $date))
-            ->when($request->date_to, fn($q, $date) => $q->whereDate('created_at', '<=', $date))
+            ->when($request->search, fn ($q, $term) => $q->where('description', 'like', "%{$term}%"))
+            ->when($request->event, fn ($q, $event) => $q->where('description', $event))
+            ->when($request->user_id, fn ($q, $id) => $q->where('causer_id', $id))
+            ->when($request->date_from, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+            ->when($request->date_to, fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
             ->orderBy('created_at', 'desc')
             ->paginate($request->per_page ?? 50);
 
@@ -26,6 +27,7 @@ class AuditController extends Controller
     public function show(string $id): JsonResponse
     {
         $log = Activity::with('causer')->findOrFail($id);
+
         return response()->json(['data' => $log]);
     }
 
@@ -39,7 +41,7 @@ class AuditController extends Controller
         return response()->json(['data' => $events]);
     }
 
-public function stats(): JsonResponse
+    public function stats(): JsonResponse
     {
         $stats = [
             'total_logs' => Activity::count(),
@@ -57,7 +59,7 @@ public function stats(): JsonResponse
                 ->limit(10)
                 ->with('causer:id,name')
                 ->get()
-                ->map(fn($log) => [
+                ->map(fn ($log) => [
                     'user' => $log->causer?->name ?? 'Inconnu',
                     'actions' => $log->total,
                 ]),
@@ -73,10 +75,10 @@ public function stats(): JsonResponse
     {
         $logs = Activity::with('causer')
             ->whereIn('description', ['signed', 'signature_created', 'signature_recalled'])
-            ->when($request->search, fn($q, $term) => $q->where('properties', 'like', "%{$term}%"))
-            ->when($request->user_id, fn($q, $id) => $q->where('causer_id', $id))
-            ->when($request->date_from, fn($q, $date) => $q->whereDate('created_at', '>=', $date))
-            ->when($request->date_to, fn($q, $date) => $q->whereDate('created_at', '<=', $date))
+            ->when($request->search, fn ($q, $term) => $q->where('properties', 'like', "%{$term}%"))
+            ->when($request->user_id, fn ($q, $id) => $q->where('causer_id', $id))
+            ->when($request->date_from, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+            ->when($request->date_to, fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
             ->orderBy('created_at', 'desc')
             ->paginate($request->per_page ?? 50);
 
@@ -90,10 +92,10 @@ public function stats(): JsonResponse
     {
         $logs = Activity::with('causer')
             ->whereIn('description', ['signature_rejected', 'workflow_rejected', 'document_rejected'])
-            ->when($request->search, fn($q, $term) => $q->where('properties', 'like', "%{$term}%"))
-            ->when($request->user_id, fn($q, $id) => $q->where('causer_id', $id))
-            ->when($request->date_from, fn($q, $date) => $q->whereDate('created_at', '>=', $date))
-            ->when($request->date_to, fn($q, $date) => $q->whereDate('created_at', '<=', $date))
+            ->when($request->search, fn ($q, $term) => $q->where('properties', 'like', "%{$term}%"))
+            ->when($request->user_id, fn ($q, $id) => $q->where('causer_id', $id))
+            ->when($request->date_from, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+            ->when($request->date_to, fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
             ->orderBy('created_at', 'desc')
             ->paginate($request->per_page ?? 50);
 
@@ -105,13 +107,13 @@ public function stats(): JsonResponse
      */
     public function directorActivity(Request $request): JsonResponse
     {
-        $director = \App\Domains\Users\Models\User::role('directeur_cabinet')->first();
+        $director = User::role('directeur_cabinet')->first();
 
         $logs = Activity::with('causer')
-            ->when($director, fn($q) => $q->where('causer_id', $director->id))
-            ->when($request->search, fn($q, $term) => $q->where('description', 'like', "%{$term}%"))
-            ->when($request->date_from, fn($q, $date) => $q->whereDate('created_at', '>=', $date))
-            ->when($request->date_to, fn($q, $date) => $q->whereDate('created_at', '<=', $date))
+            ->when($director, fn ($q) => $q->where('causer_id', $director->id))
+            ->when($request->search, fn ($q, $term) => $q->where('description', 'like', "%{$term}%"))
+            ->when($request->date_from, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+            ->when($request->date_to, fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
             ->orderBy('created_at', 'desc')
             ->paginate($request->per_page ?? 50);
 

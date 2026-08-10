@@ -8,16 +8,12 @@ use App\Domains\Documents\Models\Document;
 use App\Domains\Documents\Models\DocumentHistory;
 use App\Domains\Users\Models\User;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 final class ArchiveDocumentUseCase
 {
     public function execute(array $input, User $actor): Archive
     {
         $document = Document::query()->where('is_deleted', false)->findOrFail($input['document_id']);
-
 
         $boxId = (string) Arr::get($input, 'archive_box_id', '');
         /** @var ArchiveBox $box */
@@ -66,17 +62,15 @@ final class ArchiveDocumentUseCase
 
         // GED: QR generation (placeholder - we persist qr_code_path using hash)
         // Step 2 will later make it cryptographically anchored to final signed/archived artifact.
-        $qrAnchor = hash('sha256', 'AdminFlow|qr|' . (string) $document->hash);
+        $qrAnchor = hash('sha256', 'AdminFlow|qr|'.(string) $document->hash);
 
         // Deterministic QR path for public integrity verification anchoring.
         // NOTE: qr_anchor column might not exist yet in some DB schemas/tests.
         // We still anchor using qr_code_path, keeping backward compatibility.
         if (empty($document->qr_code_path)) {
-            $qrPath = 'qr/' . $document->id . '/' . $qrAnchor . '.png';
+            $qrPath = 'qr/'.$document->id.'/'.$qrAnchor.'.png';
             $document->update(['qr_code_path' => $qrPath]);
         }
-
-
 
         // Audit/journal (DocumentHistory)
         // Migration for document_histories uses: description + metadata (not 'details')
@@ -92,9 +86,6 @@ final class ArchiveDocumentUseCase
             ],
         ]);
 
-
-
         return $archive->load(['document', 'archiveBox']);
     }
 }
-

@@ -6,6 +6,7 @@ use App\Domains\Documents\Models\Document;
 use App\Domains\Notifications\Services\NotificationService;
 use App\Domains\Users\Models\User;
 use App\Events\DocumentSubmitted;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Envoie un document à la signature du Directeur de Cabinet.
@@ -59,18 +60,18 @@ final class SubmitForSignatureUseCase
             ],
         ]);
 
-// Notification au Directeur de Cabinet
+        // Notification au Directeur de Cabinet
         $this->notificationService->notifyFirstUserWithRole(
             'directeur_cabinet',
             'Nouveau document à signer',
-            'Le document « ' . $document->subject . ' » (N° ' . $document->document_number . ') vous attend pour signature.',
+            'Le document « '.$document->subject.' » (N° '.$document->document_number.') vous attend pour signature.',
             'info',
             [
                 'document_id' => $document->id,
                 'document_number' => $document->document_number,
                 'priority' => $document->priority,
                 'deadline' => $document->deadline ? $document->deadline->toDateString() : null,
-                'action_url' => '/documents/' . $document->id,
+                'action_url' => '/documents/'.$document->id,
             ]
         );
 
@@ -78,7 +79,7 @@ final class SubmitForSignatureUseCase
         try {
             broadcast(new DocumentSubmitted($document, $actor));
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Broadcast DocumentSubmitted : ' . $e->getMessage());
+            Log::warning('Broadcast DocumentSubmitted : '.$e->getMessage());
         }
 
         // Audit

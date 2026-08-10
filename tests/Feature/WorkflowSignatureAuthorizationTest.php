@@ -8,6 +8,7 @@ use App\Domains\Users\Models\User;
 use App\Domains\Workflows\Models\Workflow;
 use App\Domains\Workflows\Models\WorkflowApproval;
 use App\Domains\Workflows\Models\WorkflowInstance;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class WorkflowSignatureAuthorizationTest extends TestCase
@@ -20,9 +21,7 @@ class WorkflowSignatureAuthorizationTest extends TestCase
         $this->artisan('migrate:fresh', ['--env' => 'testing', '--database' => 'sqlite'])->run();
     }
 
-
     public function test_start_workflow_is_idempotent(): void
-
     {
         $actor = User::factory()->create();
         $document = Document::factory()->create(['document_type' => 'note', 'status' => 'draft']);
@@ -60,8 +59,8 @@ class WorkflowSignatureAuthorizationTest extends TestCase
     {
         $actor = User::factory()->create();
 
-// L'acteur doit avoir le rôle autorisé à signer (règle métier Présidence : directeur_cabinet uniquement).
-        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'directeur_cabinet', 'guard_name' => 'web']);
+        // L'acteur doit avoir le rôle autorisé à signer (règle métier Présidence : directeur_cabinet uniquement).
+        Role::firstOrCreate(['name' => 'directeur_cabinet', 'guard_name' => 'web']);
         $actor->assignRole('directeur_cabinet');
 
         $document = Document::factory()->create(['hash' => 'abc123', 'status' => 'draft']);
@@ -124,7 +123,6 @@ class WorkflowSignatureAuthorizationTest extends TestCase
             'history' => [],
         ]);
 
-
         // actor must be the pending approver to avoid false positives.
         $approval = WorkflowApproval::query()->create([
             'workflow_instance_id' => $instance->id,
@@ -135,11 +133,10 @@ class WorkflowSignatureAuthorizationTest extends TestCase
 
         $this->actingAs($other, 'sanctum');
 
-        $res = $this->postJson('/api/v1/workflows/approvals/' . $approval->id . '/approve', [
+        $res = $this->postJson('/api/v1/workflows/approvals/'.$approval->id.'/approve', [
             'comment' => 'ok',
         ]);
 
         $res->assertStatus(403);
     }
 }
-

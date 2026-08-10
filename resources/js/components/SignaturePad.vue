@@ -115,11 +115,12 @@ function emitChange() {
 }
 
 watch(() => props.modelValue, (val) => {
-  if (!val || !canvas.value || !ctx) return;
+  const context = ctx;
+  if (!val || !canvas.value || !context) return;
   const img = new Image();
   img.onload = () => {
-    ctx.clearRect(0, 0, props.width, props.height);
-    ctx.drawImage(img, 0, 0, props.width, props.height);
+    context.clearRect(0, 0, props.width, props.height);
+    context.drawImage(img, 0, 0, props.width, props.height);
   };
   img.src = val;
 });

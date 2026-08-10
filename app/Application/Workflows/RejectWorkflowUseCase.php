@@ -45,7 +45,7 @@ final class RejectWorkflowUseCase
             ]]),
         ]);
 
-$document->update(['status' => 'rejected']);
+        $document->update(['status' => 'rejected']);
 
         // Notification à l'initiateur du document
         $initiator = $instance->initiator ?? $document->author;
@@ -53,14 +53,14 @@ $document->update(['status' => 'rejected']);
             $this->notificationService->notify(
                 $initiator,
                 'Document rejeté',
-                'Le document « ' . $document->subject . ' » a été rejeté à l\'étape « ' . $approval->step_name . ' ». Motif : ' . ($comment ?: 'non précisé'),
+                'Le document « '.$document->subject.' » a été rejeté à l\'étape « '.$approval->step_name.' ». Motif : '.($comment ?: 'non précisé'),
                 'error',
                 [
                     'document_id' => $document->id,
                     'document_number' => $document->document_number,
                     'workflow_instance_id' => $instance->id,
                     'step' => $approval->step_name,
-                    'action_url' => '/documents/' . $document->id,
+                    'action_url' => '/documents/'.$document->id,
                 ]
             );
         }
@@ -68,7 +68,7 @@ $document->update(['status' => 'rejected']);
         $document->histories()->create([
             'user_id' => $actor->id,
             'action' => 'workflow_rejected',
-            'description' => 'Rejet workflow - ' . $approval->step_name,
+            'description' => 'Rejet workflow - '.$approval->step_name,
             'metadata' => [
                 'approval_id' => $approval->id,
                 'step' => $approval->step_name,

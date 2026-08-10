@@ -8,6 +8,7 @@ use App\Domains\Notifications\Services\NotificationService;
 use App\Domains\Signatures\Models\Signature;
 use App\Domains\Users\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 use ZipArchive;
@@ -77,7 +78,7 @@ final class SignMailMergeCampaignUseCase
             $this->notificationService->notify(
                 $creator,
                 'Campagne signée',
-                'La campagne « ' . $batch->title . ' » a été signée par le Directeur de Cabinet.',
+                'La campagne « '.$batch->title.' » a été signée par le Directeur de Cabinet.',
                 'success',
                 [
                     'batch_id' => $batch->id,
@@ -118,7 +119,7 @@ final class SignMailMergeCampaignUseCase
             abort(422, 'Aucun document généré à signer dans cette campagne.');
         }
 
-        $signedDir = 'mailmerge/' . $batch->id . '/signed';
+        $signedDir = 'mailmerge/'.$batch->id.'/signed';
         $disk->makeDirectory($signedDir);
 
         $signedCount = 0;
@@ -126,14 +127,14 @@ final class SignMailMergeCampaignUseCase
         foreach ($recipients as $recipient) {
             try {
                 $outputPath = $recipient->output_path;
-                if (!$outputPath || !$disk->exists($outputPath)) {
+                if (! $outputPath || ! $disk->exists($outputPath)) {
                     continue;
                 }
 
-// Reconstruire le PDF signé : contenu personnalisé + signature du Directeur
+                // Reconstruire le PDF signé : contenu personnalisé + signature du Directeur
                 $signedPdf = $this->signRecipientPdf($batch, $recipient, $signature, $actor, $position);
 
-                $signedPath = $signedDir . '/' . basename($outputPath);
+                $signedPath = $signedDir.'/'.basename($outputPath);
                 $disk->put($signedPath, $signedPdf);
 
                 // On mémorise le chemin signé dans output_path (le fichier signé remplace
@@ -145,8 +146,8 @@ final class SignMailMergeCampaignUseCase
 
                 $signedCount++;
             } catch (Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning(
-                    'Signature campagne - échec destinataire ' . $recipient->name . ' : ' . $e->getMessage()
+                Log::warning(
+                    'Signature campagne - échec destinataire '.$recipient->name.' : '.$e->getMessage()
                 );
             }
         }
@@ -185,8 +186,8 @@ final class SignMailMergeCampaignUseCase
         $date = now()->format('d/m/Y');
 
         $visual = $signatureImage !== null
-            ? '<img class="sig-img" src="' . $signatureImage . '" alt="Signature">'
-            : '<div class="sig-cursive">' . $name . '</div>';
+            ? '<img class="sig-img" src="'.$signatureImage.'" alt="Signature">'
+            : '<div class="sig-cursive">'.$name.'</div>';
 
         $html = <<<HTML
 <!DOCTYPE html>
@@ -252,7 +253,7 @@ HTML;
         }
 
         if (trim($content) === '') {
-            throw new \RuntimeException('Contenu source introuvable pour ' . $recipient->name);
+            throw new \RuntimeException('Contenu source introuvable pour '.$recipient->name);
         }
 
         $vars = array_merge(
@@ -261,7 +262,7 @@ HTML;
         );
 
         foreach ($vars as $key => $value) {
-            $content = str_replace('{{' . $key . '}}', (string) ($value ?? ''), $content);
+            $content = str_replace('{{'.$key.'}}', (string) ($value ?? ''), $content);
         }
 
         return nl2br($this->e($content));
@@ -269,32 +270,32 @@ HTML;
 
     private function loadSignatureImage(Signature $signature): ?string
     {
-        if (!$signature->image_path) {
+        if (! $signature->image_path) {
             return null;
         }
 
         $disk = Storage::disk('public');
-        if (!$disk->exists($signature->image_path)) {
+        if (! $disk->exists($signature->image_path)) {
             return null;
         }
 
         $full = $disk->path($signature->image_path);
         $mime = mime_content_type($full) ?: 'image/png';
 
-        return 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($full));
+        return 'data:'.$mime.';base64,'.base64_encode((string) file_get_contents($full));
     }
 
     private function buildSignedZip(MailMergeBatch $batch, string $signedDir): ?string
     {
         $disk = Storage::disk('public');
         $zipTmp = tempnam(sys_get_temp_dir(), 'afsig');
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
 
         if ($zip->open($zipTmp, ZipArchive::CREATE) !== true) {
             throw new \RuntimeException("Impossible de créer l'archive ZIP signée.");
         }
 
-$added = 0;
+        $added = 0;
         foreach ($batch->recipients()->where('status', 'signed')->get() as $recipient) {
             if ($recipient->output_path && $disk->exists($recipient->output_path)) {
                 $basename = basename($recipient->output_path);
@@ -307,10 +308,11 @@ $added = 0;
 
         if ($added === 0) {
             @unlink($zipTmp);
+
             return null;
         }
 
-        $signedZipPath = 'mailmerge/' . $batch->id . '/signed-' . now()->format('Ymd-His') . '.zip';
+        $signedZipPath = 'mailmerge/'.$batch->id.'/signed-'.now()->format('Ymd-His').'.zip';
         $disk->put($signedZipPath, (string) file_get_contents($zipTmp));
         @unlink($zipTmp);
 
@@ -319,13 +321,14 @@ $added = 0;
 
     private function campaignHash(MailMergeBatch $batch): string
     {
-        $material = $batch->id . '|' . $batch->title . '|' . $batch->total_recipients . '|' . $batch->signed_at?->toIso8601String();
+        $material = $batch->id.'|'.$batch->title.'|'.$batch->total_recipients.'|'.$batch->signed_at?->toIso8601String();
+
         return hash('sha256', $material);
     }
 
     private function extractDocxText(string $fullPath): string
     {
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($fullPath) !== true) {
             return '';
         }
@@ -336,7 +339,7 @@ $added = 0;
                 return '';
             }
 
-            $doc = new \DOMDocument();
+            $doc = new \DOMDocument;
             @$doc->loadXML($xml);
             $paragraphs = [];
 

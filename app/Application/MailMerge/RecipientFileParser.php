@@ -2,7 +2,6 @@
 
 namespace App\Application\MailMerge;
 
-use Throwable;
 use ZipArchive;
 
 /**
@@ -82,7 +81,7 @@ final class RecipientFileParser
         $recipients = $this->parse($fullPath, $originalName);
 
         $headers = [];
-        if (!empty($recipients)) {
+        if (! empty($recipients)) {
             $headers = array_keys($recipients[0]['variables']);
         }
 
@@ -194,7 +193,7 @@ final class RecipientFileParser
     /** Parse un fichier XLSX (feuille 1) via ZipArchive + XML. */
     private function parseXlsx(string $fullPath): array
     {
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($fullPath) !== true) {
             throw new \RuntimeException('Fichier XLSX invalide.');
         }
@@ -341,7 +340,7 @@ final class RecipientFileParser
     /** Parse un tableau HTML (cas des .xls exportés depuis Excel). */
     private function parseHtmlTable(string $content): array
     {
-        $doc = new \DOMDocument();
+        $doc = new \DOMDocument;
         @$doc->loadHTML($content);
         $tables = $doc->getElementsByTagName('table');
         if ($tables->length === 0) {
@@ -360,7 +359,7 @@ final class RecipientFileParser
                     $cells[] = trim($th->textContent);
                 }
             }
-            if (!empty($cells)) {
+            if (! empty($cells)) {
                 $rows[] = $cells;
             }
         }
@@ -397,7 +396,7 @@ final class RecipientFileParser
             $col = '';
             $n = $i;
             do {
-                $col = chr(65 + ($n % 26)) . $col;
+                $col = chr(65 + ($n % 26)).$col;
                 $n = intdiv($n, 26) - 1;
             } while ($n >= 0);
             $map[$col] = $i;
@@ -428,7 +427,7 @@ final class RecipientFileParser
             $vars = $this->deriveVariables($vars);
 
             $name = $vars['nom_complet']
-                ?? trim(($vars['prenom'] ?? '') . ' ' . ($vars['nom'] ?? '') . ' ' . ($vars['postnom'] ?? ''));
+                ?? trim(($vars['prenom'] ?? '').' '.($vars['nom'] ?? '').' '.($vars['postnom'] ?? ''));
 
             if (trim($name) === '') {
                 $name = 'Destinataire';
@@ -482,7 +481,7 @@ final class RecipientFileParser
                 $vars['nom'] ?? '',
                 $vars['postnom'] ?? '',
             ]);
-            if (!empty($parts)) {
+            if (! empty($parts)) {
                 $vars['nom_complet'] = implode(' ', $parts);
             }
         }
@@ -502,5 +501,3 @@ final class RecipientFileParser
         return $vars;
     }
 }
-
-

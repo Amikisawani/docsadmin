@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Application\Workflows\ApproveWorkflowUseCase;
 use App\Domains\Documents\Models\Document;
+use App\Domains\MailMerge\Models\MailMergeBatch;
 use App\Domains\Users\Models\User;
 use App\Domains\Workflows\Models\Workflow;
 use App\Domains\Workflows\Models\WorkflowApproval;
@@ -172,8 +173,11 @@ class MailMergeTest extends TestCase
         $approve = app(ApproveWorkflowUseCase::class)->execute([], $user, $approval->id);
         $this->assertSame('completed', $approve->status);
 
-        $batch = \App\Domains\MailMerge\Models\MailMergeBatch::findOrFail($batchId);
-        $this->assertSame('completed', $batch->status);
+        $batch = MailMergeBatch::findOrFail($batchId);
+        // Une fois les documents générés, la campagne part automatiquement à la
+        // signature du Directeur de Cabinet (elle n'est donc pas « completed »).
+        $this->assertSame('pending_signature', $batch->status);
+        $this->assertNotNull($batch->submitted_for_signature_at);
         $this->assertSame(2, $batch->generated_count);
         $this->assertCount(2, $batch->recipients);
 
@@ -236,7 +240,7 @@ class MailMergeTest extends TestCase
         $approve = app(ApproveWorkflowUseCase::class)->execute([], $user, $approval->id);
         $this->assertSame('completed', $approve->status);
 
-        $batch = \App\Domains\MailMerge\Models\MailMergeBatch::findOrFail($batchId);
+        $batch = MailMergeBatch::findOrFail($batchId);
         $recipient = $batch->recipients()->firstOrFail();
 
         $this->assertSame('Jean Dupont', $recipient->destinataire);
@@ -315,7 +319,7 @@ class MailMergeTest extends TestCase
 
         app(ApproveWorkflowUseCase::class)->execute([], $user, $approval->id);
 
-        $batch = \App\Domains\MailMerge\Models\MailMergeBatch::findOrFail($batchId);
+        $batch = MailMergeBatch::findOrFail($batchId);
         $this->assertSame('failed', $batch->status);
         $this->assertContains('Le document sélectionné ne contient aucun contenu exploitable.', $batch->errors ?? []);
     }
@@ -365,4 +369,3 @@ class MailMergeTest extends TestCase
         $this->assertCount(0, $res->json('data.data'));
     }
 }
-

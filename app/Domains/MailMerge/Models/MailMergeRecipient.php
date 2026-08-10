@@ -31,4 +31,3 @@ class MailMergeRecipient extends Model
         return $this->belongsTo(MailMergeBatch::class, 'batch_id');
     }
 }
-

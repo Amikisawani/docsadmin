@@ -293,38 +293,13 @@ import { ref, onMounted, computed } from "vue";
 import apiClient from "../../utils/axios";
 import { useAuthStore } from "../../stores/auth";
 import BatchWorkflowProgressCell from "../../components/BatchWorkflowProgressCell.vue";
+import type { MailMergeBatch } from "../../types";
 
 interface Workflow { id: string; name: string; document_type: string | null; is_active: boolean; }
 interface EligibleDocument { id: string; subject: string; document_number: string; reference: string | null; status: string; flow_type?: 'unique' | 'mail_merge'; }
-interface Batch {
-  id: string;
-  title: string | null;
-  document?: { subject: string } | null;
-  workflow?: { name: string } | null;
-  currentWorkflowInstance?: {
-    id: string;
-    current_step: string;
-    status: string;
-    workflow?: { name: string; steps?: Array<{ name: string; role: string; order: number }> };
-    approvals?: Array<{
-      id: string;
-      status: string;
-      step_name: string;
-      approver?: { id: string; name: string; email: string } | null;
-    }>;
-  };
-  created_by: string;
-  format: string;
-  total_recipients: number;
-  generated_count: number;
-  failed_count: number;
-  status: string;
-  signed_at?: string | null;
-  signed_zip_path?: string | null;
-  zip_path: string | null;
-  recipients?: Array<{ name: string; destinataire?: string | null; output_path?: string | null }>;
-  created_at: string;
-}
+// Le lot de publipostage est décrit une seule fois, dans les types partagés.
+type Batch = MailMergeBatch;
+
 interface PreviewData {
   headers: string[];
   rows: Record<string, string>[];

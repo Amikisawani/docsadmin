@@ -3,6 +3,7 @@
 namespace Database\Factories\Domains\Signatures\Models;
 
 use App\Domains\Signatures\Models\Signature;
+use App\Domains\Users\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class SignatureFactory extends Factory
@@ -12,8 +13,8 @@ class SignatureFactory extends Factory
     public function definition(): array
     {
         return [
-'user_id' => function () {
-                return \App\Domains\Users\Models\User::factory()->create()->id;
+            'user_id' => function () {
+                return User::factory()->create()->id;
             },
             'type' => 'graphical',
             'label' => $this->faker->word(),
@@ -28,4 +29,3 @@ class SignatureFactory extends Factory
         ];
     }
 }
-

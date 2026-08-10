@@ -14,13 +14,13 @@ class UserController extends Controller
     public function index(Request $request): JsonResponse
     {
         $users = User::with('department', 'roles')
-            ->when($request->search, fn($q, $term) => $q->where(function($q) use ($term) {
+            ->when($request->search, fn ($q, $term) => $q->where(function ($q) use ($term) {
                 $q->where('name', 'like', "%{$term}%")
-                  ->orWhere('email', 'like', "%{$term}%");
+                    ->orWhere('email', 'like', "%{$term}%");
             }))
-            ->when($request->department_id, fn($q, $id) => $q->byDepartment($id))
-            ->when($request->role, fn($q, $role) => $q->role($role))
-            ->when($request->status, fn($q, $status) => $q->where('status', $status))
+            ->when($request->department_id, fn ($q, $id) => $q->byDepartment($id))
+            ->when($request->role, fn ($q, $role) => $q->role($role))
+            ->when($request->status, fn ($q, $status) => $q->where('status', $status))
             ->orderBy($request->sort ?? 'name', $request->order ?? 'asc')
             ->paginate($request->per_page ?? 15);
 
@@ -66,7 +66,7 @@ class UserController extends Controller
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
-            'email' => ['sometimes', 'string', 'email', 'max:255', 'unique:users,email,' . $id],
+            'email' => ['sometimes', 'string', 'email', 'max:255', 'unique:users,email,'.$id],
             'password' => ['sometimes', 'string', 'min:8'],
             'department_id' => ['nullable', 'string', 'exists:departments,id'],
             'job_title' => ['nullable', 'string', 'max:255'],
@@ -108,13 +108,27 @@ class UserController extends Controller
         ]);
     }
 
-    public function uploadAvatar(Request $request): JsonResponse
+    /**
+     * Liste des utilisateurs portant un rôle donné (construction des étapes de workflow).
+     */
+    public function byRole(string $role): JsonResponse
+    {
+        $users = User::with('department')
+            ->role($role)
+            ->active()
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'job_title', 'department_id']);
+
+        return response()->json(['data' => $users]);
+    }
+
+    public function uploadAvatar(Request $request, string $id): JsonResponse
     {
         $request->validate([
             'avatar' => ['required', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'],
         ]);
 
-        $user = $request->user();
+        $user = $this->resolveEditableUser($request, $id);
         $path = $request->file('avatar')->store('avatars', 'public');
 
         if ($user->avatar_path) {
@@ -129,13 +143,13 @@ class UserController extends Controller
         ]);
     }
 
-    public function uploadSignature(Request $request): JsonResponse
+    public function uploadSignature(Request $request, string $id): JsonResponse
     {
         $request->validate([
             'signature' => ['required', 'image', 'mimes:png', 'max:1024'],
         ]);
 
-        $user = $request->user();
+        $user = $this->resolveEditableUser($request, $id);
         $path = $request->file('signature')->store('signatures', 'public');
 
         if ($user->signature_image_path) {
@@ -148,5 +162,17 @@ class UserController extends Controller
             'message' => 'Signature mise à jour avec succès.',
             'data' => ['signature_url' => $user->signature_url],
         ]);
+    }
+
+    /**
+     * Un utilisateur ne modifie que son propre profil ; l'administrateur modifie tout le monde.
+     */
+    private function resolveEditableUser(Request $request, string $id): User
+    {
+        $actor = $request->user();
+
+        abort_unless($actor->id === $id || $actor->hasRole('admin'), 403, 'Action non autorisée.');
+
+        return User::findOrFail($id);
     }
 }

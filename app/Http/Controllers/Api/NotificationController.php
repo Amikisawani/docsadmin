@@ -12,8 +12,8 @@ class NotificationController extends Controller
     public function index(Request $request): JsonResponse
     {
         $notifications = $request->user()->notifications()
-            ->when($request->type, fn($q, $type) => $q->where('type', $type))
-            ->when($request->unread, fn($q) => $q->whereNull('read_at'))
+            ->when($request->type, fn ($q, $type) => $q->where('type', $type))
+            ->when($request->unread, fn ($q) => $q->whereNull('read_at'))
             ->orderBy('created_at', 'desc')
             ->paginate($request->per_page ?? 20);
 

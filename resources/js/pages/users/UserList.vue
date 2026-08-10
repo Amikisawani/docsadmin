@@ -57,7 +57,7 @@
               <td>{{ user.fonction || "-" }}</td>
               <td>{{ user.service || "-" }}</td>
               <td>
-                <span v-for="role in (user.roles || [])" :key="role" class="badge badge-blue mr-1">{{ role.name || role }}</span>
+                <span v-for="role in (user.roles || [])" :key="role.name" class="badge badge-blue mr-1">{{ role.name }}</span>
                 <span v-if="!user.roles?.length" class="text-muted text-xs">-</span>
               </td>
               <td><span class="badge" :class="user.is_active ? 'badge-green' : 'badge-gray'">{{ user.is_active ? "Actif" : "Inactif" }}</span></td>

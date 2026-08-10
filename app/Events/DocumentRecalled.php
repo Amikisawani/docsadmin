@@ -24,12 +24,12 @@ class DocumentRecalled implements ShouldBroadcast
 
     public function broadcastOn(): array
     {
-        $director = \App\Domains\Users\Models\User::role('directeur_cabinet')->where('is_active', true)->first();
+        $director = User::role('directeur_cabinet')->where('is_active', true)->first();
 
         $channels = [];
 
         if ($director) {
-            $channels[] = new PrivateChannel('App.Models.User.' . $director->id);
+            $channels[] = new PrivateChannel('App.Models.User.'.$director->id);
         }
 
         return $channels;
@@ -48,7 +48,7 @@ class DocumentRecalled implements ShouldBroadcast
             'subject' => $this->document->subject,
             'recalled_by' => $this->recalledBy->name,
             'reminder' => true,
-            'action_url' => '/director/documents/' . $this->document->id,
+            'action_url' => '/director/documents/'.$this->document->id,
         ];
     }
 }

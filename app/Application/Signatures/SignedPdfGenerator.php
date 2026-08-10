@@ -97,12 +97,12 @@ HTML;
         $pdf = Pdf::loadHTML($html);
         $pdf->setPaper('a4');
 
-        $fileName = 'signed/' . $document->id . '-' . now()->format('Ymd-His') . '.pdf';
+        $fileName = 'signed/'.$document->id.'-'.now()->format('Ymd-His').'.pdf';
 
         try {
             Storage::disk('public')->put($fileName, $pdf->output());
         } catch (\Throwable $e) {
-            Log::warning('Échec stockage PDF signé : ' . $e->getMessage());
+            Log::warning('Échec stockage PDF signé : '.$e->getMessage());
             throw $e;
         }
 
@@ -113,7 +113,7 @@ HTML;
     {
         // 1) Si un fichier Word source (.docx) est présent, tenter d'extraire le texte.
         if ($document->source_file_path) {
-            $full = storage_path('app/public/' . $document->source_file_path);
+            $full = storage_path('app/public/'.$document->source_file_path);
             if (is_file($full)) {
                 $extracted = $this->extractDocxText($full);
                 if ($extracted !== null && trim($extracted) !== '') {
@@ -152,34 +152,35 @@ HTML;
                     }
 
                     if ($text !== null && trim((string) $text) !== '') {
-                        $parts[] = '<p>' . $this->e((string) $text) . '</p>';
+                        $parts[] = '<p>'.$this->e((string) $text).'</p>';
                     }
                 }
             }
 
             return $parts === [] ? null : implode("\n", $parts);
         } catch (\Throwable $e) {
-            Log::info('Extraction DOCX impossible : ' . $e->getMessage());
+            Log::info('Extraction DOCX impossible : '.$e->getMessage());
+
             return null;
         }
     }
 
     /**
-      * Construit l'overlay de signature (image seule).
-      *
-      * Version Présidence : le PDF n'affiche QUE la signature.
-      * Aucune mention parasite (nom, fonction, date, etc.) n'est ajoutée
-      * visuellement sur le document. Toutes les informations techniques
-      * (identité, date, heure, IP, navigateur, appareil, hash, etc.)
-      * sont enregistrées uniquement dans les journaux d'audit.
-      */
+     * Construit l'overlay de signature (image seule).
+     *
+     * Version Présidence : le PDF n'affiche QUE la signature.
+     * Aucune mention parasite (nom, fonction, date, etc.) n'est ajoutée
+     * visuellement sur le document. Toutes les informations techniques
+     * (identité, date, heure, IP, navigateur, appareil, hash, etc.)
+     * sont enregistrées uniquement dans les journaux d'audit.
+     */
     private function buildSignatureOverlay(Signature $signature, User $signer, ?array $position): string
     {
         $image = $this->loadSignatureImage($signature);
 
         $visual = $image !== null
-            ? '<img class="sig-img" src="' . $image . '" alt="Signature">'
-            : '<div class="sig-name" style="font-family: \'DejaVu Sans\', cursive; font-style: italic; font-size: 22px;">' . $this->e($signer->name) . '</div>';
+            ? '<img class="sig-img" src="'.$image.'" alt="Signature">'
+            : '<div class="sig-name" style="font-family: \'DejaVu Sans\', cursive; font-style: italic; font-size: 22px;">'.$this->e($signer->name).'</div>';
 
         return <<<HTML
 <div class="signature-overlay">
@@ -190,18 +191,18 @@ HTML;
 
     private function loadSignatureImage(Signature $signature): ?string
     {
-        if (!$signature->image_path) {
+        if (! $signature->image_path) {
             return null;
         }
 
-        $full = storage_path('app/public/' . $signature->image_path);
-        if (!is_file($full)) {
+        $full = storage_path('app/public/'.$signature->image_path);
+        if (! is_file($full)) {
             return null;
         }
 
         $mime = mime_content_type($full) ?: 'image/png';
 
-        return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($full));
+        return 'data:'.$mime.';base64,'.base64_encode(file_get_contents($full));
     }
 
     private function e(?string $value): string

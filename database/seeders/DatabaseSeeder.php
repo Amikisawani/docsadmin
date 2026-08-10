@@ -14,7 +14,7 @@ class DatabaseSeeder extends Seeder
             RoleAndPermissionSeeder::class,
         ]);
 
-// Create default departments (idempotent)
+        // Create default departments (idempotent)
         $presidence = Department::firstOrCreate(
             ['code' => 'PRES'],
             [
@@ -77,7 +77,7 @@ class DatabaseSeeder extends Seeder
         ]);
         $secretary->assignRole('secretaire');
 
-// Create director
+        // Create director
         $director = User::create([
             'name' => 'Directeur Général',
             'email' => 'directeur@adminflow.ci',
@@ -103,7 +103,7 @@ class DatabaseSeeder extends Seeder
                 'status' => 'active',
             ]
         );
-        if (!$cabinet->hasRole('directeur_cabinet')) {
+        if (! $cabinet->hasRole('directeur_cabinet')) {
             $cabinet->assignRole('directeur_cabinet');
         }
 
@@ -134,7 +134,7 @@ class DatabaseSeeder extends Seeder
                 'status' => 'active',
             ]
         );
-        if (!$hami->hasRole('admin')) {
+        if (! $hami->hasRole('admin')) {
             $hami->assignRole('admin');
         }
     }

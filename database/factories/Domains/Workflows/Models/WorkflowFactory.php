@@ -18,9 +18,8 @@ class WorkflowFactory extends Factory
             'steps' => [
                 ['name' => 'chef', 'role' => 'admin', 'order' => 1],
             ],
-'is_active' => true,
+            'is_active' => true,
             'created_by' => $this->faker->randomNumber(5, true),
         ];
     }
 }
-

@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Domains\Documents\Models\Document;
 use App\Domains\Users\Models\User;
-
 use Tests\TestCase;
 
 class DocumentQrVerificationTest extends TestCase
@@ -28,10 +27,7 @@ class DocumentQrVerificationTest extends TestCase
             'reference' => 'DOC-QR-REF-1',
         ]);
 
-
         $this->actingAs($actor, 'sanctum');
-
-
 
         $payload = [
 
@@ -43,13 +39,13 @@ class DocumentQrVerificationTest extends TestCase
             'notes' => 'archive test',
         ];
 
-        $res = $this->postJson('/api/v1/documents/' . $document->id . '/archive', $payload);
+        $res = $this->postJson('/api/v1/documents/'.$document->id.'/archive', $payload);
         $res->assertStatus(201);
 
-        $verif = $this->getJson('/public/documents/verify?hash=' . urlencode((string) $document->hash));
+        $verif = $this->getJson('/public/documents/verify?hash='.urlencode((string) $document->hash));
         $verif->assertStatus(200);
         $verif->assertJsonPath('data.is_archived', true);
-        $verif->assertJsonPath('data.qr_anchor', hash('sha256', 'AdminFlow|qr|' . (string) $document->hash));
+        $verif->assertJsonPath('data.qr_anchor', hash('sha256', 'AdminFlow|qr|'.(string) $document->hash));
 
     }
 
@@ -60,4 +56,3 @@ class DocumentQrVerificationTest extends TestCase
         $verif->assertJsonPath('is_valid', false);
     }
 }
-

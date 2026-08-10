@@ -1,8 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
 class CreateActivityLogTable extends Migration
 {
@@ -12,7 +12,7 @@ class CreateActivityLogTable extends Migration
             $table->bigIncrements('id');
             $table->string('log_name')->nullable();
             $table->text('description');
-$table->string('subject_type')->nullable();
+            $table->string('subject_type')->nullable();
             $table->string('subject_id', 36)->nullable();
             $table->index(['subject_type', 'subject_id'], 'subject_index');
             $table->string('causer_type')->nullable();

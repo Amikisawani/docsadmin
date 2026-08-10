@@ -3,13 +3,13 @@
 namespace App\Application\Workflows;
 
 use App\Application\MailMerge\RunMailMergeUseCase;
+use App\Domains\Documents\Models\Document;
 use App\Domains\Documents\Models\DocumentHistory;
 use App\Domains\MailMerge\Models\MailMergeBatch;
 use App\Domains\Notifications\Services\NotificationService;
 use App\Domains\Users\Models\User;
 use App\Domains\Workflows\Models\WorkflowApproval;
 use App\Domains\Workflows\Models\WorkflowInstance;
-use Illuminate\Support\Arr;
 
 final class ApproveWorkflowUseCase
 {
@@ -62,11 +62,11 @@ final class ApproveWorkflowUseCase
                 ]]),
             ]);
 
-            $nextRole = (string)($nextStep['role'] ?? '');
+            $nextRole = (string) ($nextStep['role'] ?? '');
             $nextApprover = $nextRole !== '' ? User::role($nextRole)->first() : null;
 
             if ($nextApprover) {
-                \App\Domains\Workflows\Models\WorkflowApproval::create([
+                WorkflowApproval::create([
                     'workflow_instance_id' => $instance->id,
                     'step_name' => $nextStep['name'],
                     'approver_id' => $nextApprover->id,
@@ -77,14 +77,14 @@ final class ApproveWorkflowUseCase
                 $this->notificationService->notify(
                     $nextApprover,
                     'Nouvelle approbation requise',
-                    'Le document « ' . $document->subject . ' » vous attend à l\'étape « ' . $nextStep['name'] . ' ».',
+                    'Le document « '.$document->subject.' » vous attend à l\'étape « '.$nextStep['name'].' ».',
                     'info',
                     [
                         'document_id' => $document->id,
                         'document_number' => $document->document_number,
                         'workflow_instance_id' => $instance->id,
                         'step' => $nextStep['name'],
-                        'action_url' => '/documents/' . $document->id,
+                        'action_url' => '/documents/'.$document->id,
                     ]
                 );
             }
@@ -113,13 +113,13 @@ final class ApproveWorkflowUseCase
             $this->notificationService->notifyRole(
                 'directeur',
                 'Document prêt à signer',
-                'Le document « ' . $document->subject . ' » a terminé toutes les validations. Il est prêt pour la signature.',
+                'Le document « '.$document->subject.' » a terminé toutes les validations. Il est prêt pour la signature.',
                 'success',
                 [
                     'document_id' => $document->id,
                     'document_number' => $document->document_number,
                     'workflow_instance_id' => $instance->id,
-                    'action_url' => '/documents/' . $document->id,
+                    'action_url' => '/documents/'.$document->id,
                 ]
             );
         }
@@ -128,7 +128,7 @@ final class ApproveWorkflowUseCase
         $document->histories()->create([
             'user_id' => $actor->id,
             'action' => 'workflow_approved',
-            'description' => 'Approbation workflow - ' . $approval->step_name,
+            'description' => 'Approbation workflow - '.$approval->step_name,
             'metadata' => [
                 'approval_id' => $approval->id,
                 'step' => $approval->step_name,
@@ -139,7 +139,7 @@ final class ApproveWorkflowUseCase
     }
 
     private function triggerMailMergeGeneration(
-        \App\Domains\Documents\Models\Document $document,
+        Document $document,
     ): void {
         $batches = MailMergeBatch::query()
             ->where('document_id', $document->id)

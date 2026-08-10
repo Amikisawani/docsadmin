@@ -12,8 +12,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Signature extends Model
 {
-    use HasUlids, SoftDeletes;
     use HasFactory;
+    use HasUlids, SoftDeletes;
 
     protected $fillable = [
         'user_id',

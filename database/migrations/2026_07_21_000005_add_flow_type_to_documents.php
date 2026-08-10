@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -22,7 +23,7 @@ return new class extends Migration
         });
 
         // Synchroniser les valeurs existantes : les documents sans flow_type restent 'unique'.
-        \Illuminate\Support\Facades\DB::table('documents')->update([
+        DB::table('documents')->update([
             'flow_type' => 'unique',
             'is_mail_merge' => false,
         ]);
@@ -35,4 +36,3 @@ return new class extends Migration
         });
     }
 };
-

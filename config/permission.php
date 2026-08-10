@@ -1,9 +1,12 @@
 <?php
 
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+
 return [
     'models' => [
-        'permission' => Spatie\Permission\Models\Permission::class,
-        'role' => Spatie\Permission\Models\Role::class,
+        'permission' => Permission::class,
+        'role' => Role::class,
     ],
 
     'table_names' => [
@@ -26,9 +29,9 @@ return [
     'display_permission_in_exception' => false,
     'display_role_in_exception' => false,
     'enable_wildcard_permission' => false,
-'cache' => [
+    'cache' => [
         'key' => 'permission_cache',
-        'expiration_time' => \DateInterval::createFromDateString('24 hours'),
+        'expiration_time' => DateInterval::createFromDateString('24 hours'),
         'store' => 'default',
     ],
 ];

@@ -272,7 +272,7 @@ function historyIconClass(action: string): string {
 function historyTypeClass(type: string): string {
   return type === "campaign" ? "campaign" : "";
 }
-function formatDateTime(d?: string): string {
+function formatDateTime(d?: string | null): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
@@ -293,7 +293,7 @@ function campaignStatusLabel(s?: string): string {
 function campaignStatusClass(s?: string): string {
   return ({ pending_signature: "urgent", signed: "normal", rejected: "urgent", completed: "normal" } as Record<string, string>)[s || ""] || "normal";
 }
-function formatDate(d?: string): string {
+function formatDate(d?: string | null): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
 }

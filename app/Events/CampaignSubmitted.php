@@ -25,12 +25,12 @@ class CampaignSubmitted implements ShouldBroadcast
 
     public function broadcastOn(): array
     {
-        $director = \App\Domains\Users\Models\User::role('directeur_cabinet')->where('is_active', true)->first();
+        $director = User::role('directeur_cabinet')->where('is_active', true)->first();
 
         $channels = [];
 
         if ($director) {
-            $channels[] = new PrivateChannel('App.Models.User.' . $director->id);
+            $channels[] = new PrivateChannel('App.Models.User.'.$director->id);
         }
 
         return $channels;
@@ -49,7 +49,7 @@ class CampaignSubmitted implements ShouldBroadcast
             'document_number' => $this->batch->document?->document_number,
             'recipients_count' => $this->batch->total_recipients,
             'submitted_by' => $this->submittedBy->name,
-            'action_url' => '/director/campaigns/' . $this->batch->id,
+            'action_url' => '/director/campaigns/'.$this->batch->id,
         ];
     }
 }

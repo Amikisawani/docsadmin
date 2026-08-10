@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MailMergeBatch extends Model
 {
-use HasUlids;
+    use HasUlids;
 
     protected $fillable = [
         'template_id',
@@ -86,7 +86,7 @@ use HasUlids;
     /** @return array<string, string> */
     public function getStatusLabelAttribute(): string
     {
-return match ($this->status) {
+        return match ($this->status) {
             'processing' => 'En cours',
             'completed' => 'Terminé',
             'partial' => 'Partiel',
@@ -99,4 +99,3 @@ return match ($this->status) {
         };
     }
 }
-

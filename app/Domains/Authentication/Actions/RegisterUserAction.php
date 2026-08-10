@@ -5,6 +5,7 @@ namespace App\Domains\Authentication\Actions;
 use App\Domains\Users\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Guard;
 use Spatie\Permission\Models\Role;
 
 class RegisterUserAction
@@ -21,7 +22,13 @@ class RegisterUserAction
             'is_active' => true,
         ]);
 
-        $role = Role::firstOrCreate(['name' => Arr::get($data, 'role', 'agent'), 'guard_name' => 'sanctum']);
+        // Le guard doit rester celui des rôles applicatifs : un rôle créé sous le
+        // guard de la requête courante (« sanctum ») ne serait jamais reconnu
+        // par les contrôles d'accès, qui interrogent le guard du modèle User.
+        $role = Role::firstOrCreate([
+            'name' => Arr::get($data, 'role', 'agent'),
+            'guard_name' => Guard::getDefaultName(User::class),
+        ]);
         $user->assignRole($role);
 
         return $user;

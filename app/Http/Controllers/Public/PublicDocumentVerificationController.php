@@ -13,7 +13,7 @@ class PublicDocumentVerificationController extends Controller
     {
         $hash = $request->query('hash');
 
-        if (!is_string($hash) || $hash === '') {
+        if (! is_string($hash) || $hash === '') {
             return response()->json([
                 'message' => 'Hash manquant ou invalide.',
             ], 422);
@@ -23,7 +23,7 @@ class PublicDocumentVerificationController extends Controller
             ->where('hash', $hash)
             ->first();
 
-        if (!$document) {
+        if (! $document) {
             return response()->json([
                 'is_valid' => false,
                 'message' => 'Document introuvable pour le hash fourni.',
@@ -35,7 +35,7 @@ class PublicDocumentVerificationController extends Controller
         // - le hash stocké correspond à l'intégrité attendue
         // IMPORTANT : pour une GED juridiquement solide, on devra recalculer le hash à partir d'un
         //       contenu stable (ex: rendu PDF final signé) et comparer avec le hash enregistré.
-        $expectedHash = hash('sha256', ($document->content ?? '') . ($document->document_date ? $document->document_date->toIso8601String() : now()->toIso8601String()));
+        $expectedHash = hash('sha256', ($document->content ?? '').($document->document_date ? $document->document_date->toIso8601String() : now()->toIso8601String()));
 
         $isValid = hash_equals($document->hash ?? '', $expectedHash);
 
@@ -51,7 +51,7 @@ class PublicDocumentVerificationController extends Controller
                 'document_date' => optional($document->document_date)->toDateString(),
                 'hash' => $document->hash,
                 'qr_code_path' => $document->qr_code_path,
-'qr_anchor' => hash('sha256', 'AdminFlow|qr|' . (string) $document->hash),
+                'qr_anchor' => hash('sha256', 'AdminFlow|qr|'.(string) $document->hash),
                 'is_archived' => (bool) $document->is_archived,
                 'author' => $document->author ? [
                     'id' => $document->author->id,
@@ -61,7 +61,7 @@ class PublicDocumentVerificationController extends Controller
                     'id' => $document->department->id,
                     'name' => $document->department->name,
                 ] : null,
-                'signatures' => $document->signatures->map(fn($ds) => [
+                'signatures' => $document->signatures->map(fn ($ds) => [
                     'signature_id' => $ds->signature_id,
                     'type' => $ds->type,
                     'hash_signature' => $ds->hash_signature,
@@ -75,4 +75,3 @@ class PublicDocumentVerificationController extends Controller
         ]);
     }
 }
-

@@ -15,15 +15,15 @@ final class NotificationService
     /**
      * Crée une notification destinée à un utilisateur.
      *
-     * @param  User   $user   Destinataire
-     * @param  string $title  Titre
-     * @param  string|null $body  Corps
-     * @param  string $type   info | warning | success | error
-     * @param  array|null $data Données additionnelles (document_id, workflow_instance_id, etc.)
+     * @param  User  $user  Destinataire
+     * @param  string  $title  Titre
+     * @param  string|null  $body  Corps
+     * @param  string  $type  info | warning | success | error
+     * @param  array|null  $data  Données additionnelles (document_id, workflow_instance_id, etc.)
      */
     public function notify(User $user, string $title, ?string $body = null, string $type = 'info', ?array $data = null): void
     {
-        $notification = new DatabaseNotification();
+        $notification = new DatabaseNotification;
         $notification->id = (string) Str::ulid();
         $notification->type = $type;
         $notification->title = $title;
@@ -68,4 +68,3 @@ final class NotificationService
         }
     }
 }
-

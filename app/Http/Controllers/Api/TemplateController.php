@@ -4,19 +4,21 @@ namespace App\Http\Controllers\Api;
 
 use App\Domains\Templates\Models\Template;
 use App\Http\Controllers\Controller;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use PhpOffice\PhpWord\PhpWord;
 
 class TemplateController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
         $templates = Template::with('creator')
-            ->when($request->type, fn($q, $type) => $q->byType($type))
-            ->when($request->category, fn($q, $cat) => $q->byCategory($cat))
-            ->when($request->search, fn($q, $term) => $q->where('name', 'like', "%{$term}%"))
+            ->when($request->type, fn ($q, $type) => $q->byType($type))
+            ->when($request->category, fn ($q, $cat) => $q->byCategory($cat))
+            ->when($request->search, fn ($q, $term) => $q->where('name', 'like', "%{$term}%"))
             ->orderBy('name')
             ->paginate($request->per_page ?? 15);
 
@@ -41,7 +43,7 @@ class TemplateController extends Controller
             $file = $request->file('file');
             $path = $file->storeAs(
                 'templates',
-                Str::slug($validated['name']) . '-' . Str::lower(Str::random(6)) . '.' . $file->getClientOriginalExtension(),
+                Str::slug($validated['name']).'-'.Str::lower(Str::random(6)).'.'.$file->getClientOriginalExtension(),
                 'public'
             );
             $content = null;
@@ -49,7 +51,7 @@ class TemplateController extends Controller
         // Mode 2 : contenu saisi (textarea)
         else {
             $slug = Str::slug($validated['name']) ?: 'template';
-            $path = "templates/{$slug}-" . Str::lower(Str::random(6)) . '.txt';
+            $path = "templates/{$slug}-".Str::lower(Str::random(6)).'.txt';
             Storage::disk('public')->put($path, $validated['content']);
             $content = $validated['content'];
         }
@@ -74,6 +76,7 @@ class TemplateController extends Controller
     public function show(string $id): JsonResponse
     {
         $template = Template::with('creator')->findOrFail($id);
+
         return response()->json(['data' => $template]);
     }
 
@@ -98,7 +101,7 @@ class TemplateController extends Controller
             $file = $request->file('file');
             $validated['file_path'] = $file->storeAs(
                 'templates',
-                Str::slug(($validated['name'] ?? $template->name) ?: 'template') . '-' . Str::lower(Str::random(6)) . '.' . $file->getClientOriginalExtension(),
+                Str::slug(($validated['name'] ?? $template->name) ?: 'template').'-'.Str::lower(Str::random(6)).'.'.$file->getClientOriginalExtension(),
                 'public'
             );
             $validated['content'] = null;
@@ -106,8 +109,8 @@ class TemplateController extends Controller
         // Mode contenu : on met à jour le contenu texte et on réécrit le fichier source.
         elseif ($request->filled('content')) {
             $path = $template->file_path;
-            if ($template->content === null || $template->file_path && !str_ends_with($template->file_path, '.txt')) {
-                $path = Str::slug(($validated['name'] ?? $template->name) ?: 'template') . '-' . Str::lower(Str::random(6)) . '.txt';
+            if ($template->content === null || $template->file_path && ! str_ends_with($template->file_path, '.txt')) {
+                $path = Str::slug(($validated['name'] ?? $template->name) ?: 'template').'-'.Str::lower(Str::random(6)).'.txt';
                 Storage::disk('public')->put($path, $validated['content']);
                 $validated['file_path'] = $path;
             } else {
@@ -143,13 +146,13 @@ class TemplateController extends Controller
         ]);
 
         $format = $validated['format'] ?? $template->type;
-        $outputPath = 'generated/' . uniqid('doc_', true);
+        $outputPath = 'generated/'.uniqid('doc_', true);
 
         // 1) Récupérer le contenu source (priorité au contenu texte stocké)
-        if (!empty($template->content)) {
+        if (! empty($template->content)) {
             $content = $template->content;
-        } elseif ($template->file_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($template->file_path)) {
-            $content = \Illuminate\Support\Facades\Storage::disk('public')->get($template->file_path);
+        } elseif ($template->file_path && Storage::disk('public')->exists($template->file_path)) {
+            $content = Storage::disk('public')->get($template->file_path);
         } else {
             $content = '';
         }
@@ -161,34 +164,34 @@ class TemplateController extends Controller
         // 2) Remplacer les variables {{key}} -> valeur (échappées pour HTML/PDF)
         foreach ($validated['variables'] as $key => $value) {
             $content = str_replace(
-                '{{' . $key . '}}',
+                '{{'.$key.'}}',
                 (string) ($value ?? ''),
                 $content
             );
         }
 
         // 3) Générer le document selon le format demandé
-        $disk = \Illuminate\Support\Facades\Storage::disk('public');
+        $disk = Storage::disk('public');
 
         if ($format === 'pdf') {
             $html = nl2br(e($content));
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
-            $path = $outputPath . '.pdf';
+            $pdf = Pdf::loadHTML($html);
+            $path = $outputPath.'.pdf';
             $disk->put($path, $pdf->output());
         } elseif ($format === 'docx') {
             // DOCX généré via PHPWord : préservation simple du texte avec sauts de ligne.
-            $phpWord = new \PhpOffice\PhpWord\PhpWord();
+            $phpWord = new PhpWord;
             $section = $phpWord->addSection();
             foreach (preg_split('/\r\n|\r|\n/', $content) as $line) {
                 $section->addText($line);
             }
-            $path = $outputPath . '.docx';
+            $path = $outputPath.'.docx';
             $tmp = tempnam(sys_get_temp_dir(), 'afdocx');
             $phpWord->save($tmp, 'Word2007');
             $disk->put($path, file_get_contents($tmp));
             @unlink($tmp);
         } else {
-            $path = $outputPath . '.txt';
+            $path = $outputPath.'.txt';
             $disk->put($path, $content);
         }
 

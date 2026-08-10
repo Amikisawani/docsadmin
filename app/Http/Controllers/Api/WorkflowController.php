@@ -2,17 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Domains\Workflows\Models\Workflow;
-use App\Domains\Workflows\Models\WorkflowInstance;
-use App\Domains\Workflows\Models\WorkflowApproval;
-use App\Http\Controllers\Controller;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-
 use App\Application\Workflows\ApproveWorkflowUseCase;
 use App\Application\Workflows\RejectWorkflowUseCase;
 use App\Application\Workflows\StartWorkflowUseCase;
 use App\Domains\Notifications\Services\NotificationService;
+use App\Domains\Workflows\Models\Workflow;
+use App\Domains\Workflows\Models\WorkflowApproval;
+use App\Domains\Workflows\Models\WorkflowInstance;
+use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class WorkflowController extends Controller
 {
@@ -26,14 +25,13 @@ class WorkflowController extends Controller
     public function index(Request $request): JsonResponse
     {
         $workflows = Workflow::with('creator')
-            ->when($request->document_type, fn($q, $type) => $q->byDocumentType($type))
-            ->when($request->search, fn($q, $term) => $q->where('name', 'like', "%{$term}%"))
+            ->when($request->document_type, fn ($q, $type) => $q->byDocumentType($type))
+            ->when($request->search, fn ($q, $term) => $q->where('name', 'like', "%{$term}%"))
             ->orderBy('name')
             ->paginate($request->per_page ?? 15);
 
         return response()->json(['data' => $workflows]);
     }
-
 
     public function store(Request $request): JsonResponse
     {
@@ -59,6 +57,7 @@ class WorkflowController extends Controller
     public function show(string $id): JsonResponse
     {
         $workflow = Workflow::with('creator', 'instances')->findOrFail($id);
+
         return response()->json(['data' => $workflow]);
     }
 
@@ -107,9 +106,9 @@ class WorkflowController extends Controller
     public function instances(Request $request): JsonResponse
     {
         $instances = WorkflowInstance::with(['workflow', 'document', 'initiator', 'approvals.approver'])
-            ->when($request->status, fn($q, $status) => $q->byStatus($status))
-            ->when($request->workflow_id, fn($q, $id) => $q->where('workflow_id', $id))
-            ->when($request->user_id, fn($q, $id) => $q->where('initiated_by', $id))
+            ->when($request->status, fn ($q, $status) => $q->byStatus($status))
+            ->when($request->workflow_id, fn ($q, $id) => $q->where('workflow_id', $id))
+            ->when($request->user_id, fn ($q, $id) => $q->where('initiated_by', $id))
             ->orderBy('created_at', 'desc')
             ->paginate($request->per_page ?? 15);
 
@@ -131,7 +130,6 @@ class WorkflowController extends Controller
         ], 201);
     }
 
-
     public function approve(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate([
@@ -147,7 +145,6 @@ class WorkflowController extends Controller
         ]);
     }
 
-
     public function reject(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate([
@@ -161,7 +158,6 @@ class WorkflowController extends Controller
             'data' => $instance,
         ]);
     }
-
 
     public function pendingApprovals(Request $request): JsonResponse
     {
@@ -200,7 +196,7 @@ class WorkflowController extends Controller
         $this->notificationService->notify(
             $approver,
             'Rappel : document à valider',
-            'Le document « ' . $document->subject . ' » vous attend à l\'étape « ' . $approval->step_name . ' ». Merci de traiter cette validation.',
+            'Le document « '.$document->subject.' » vous attend à l\'étape « '.$approval->step_name.' ». Merci de traiter cette validation.',
             'warning',
             [
                 'document_id' => $document->id,
@@ -208,13 +204,13 @@ class WorkflowController extends Controller
                 'workflow_instance_id' => $approval->workflow_instance_id,
                 'approval_id' => $approval->id,
                 'step' => $approval->step_name,
-                'action_url' => '/documents/' . $document->id,
+                'action_url' => '/documents/'.$document->id,
                 'reminder' => true,
             ]
         );
 
         return response()->json([
-            'message' => 'Rappel envoyé à ' . $approver->name . '.',
+            'message' => 'Rappel envoyé à '.$approver->name.'.',
         ]);
     }
 }

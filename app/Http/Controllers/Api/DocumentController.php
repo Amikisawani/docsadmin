@@ -2,30 +2,31 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Application\Archives\ArchiveDocumentUseCase;
 use App\Application\Signatures\RecallSignatureUseCase;
 use App\Application\Signatures\RejectForSignatureUseCase;
+use App\Application\Signatures\SignDocumentUseCase;
 use App\Application\Signatures\SubmitForSignatureUseCase;
 use App\Domains\Documents\Actions\CreateDocumentAction;
 use App\Domains\Documents\Models\Document;
 use App\Domains\Signatures\Models\Signature;
-use App\Application\Signatures\SignDocumentUseCase;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class DocumentController extends Controller
 {
     public function __construct(
         private readonly CreateDocumentAction $createDocumentAction,
-        private readonly \App\Application\Archives\ArchiveDocumentUseCase $archiveDocumentUseCase,
+        private readonly ArchiveDocumentUseCase $archiveDocumentUseCase,
         private readonly SubmitForSignatureUseCase $submitForSignatureUseCase,
         private readonly RecallSignatureUseCase $recallSignatureUseCase,
         private readonly RejectForSignatureUseCase $rejectForSignatureUseCase,
         private readonly SignDocumentUseCase $signDocumentUseCase,
     ) {}
 
-
-public function index(Request $request): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         $user = $request->user();
 
@@ -38,19 +39,19 @@ public function index(Request $request): JsonResponse
 
         // Visibilité par rôle : seuls l'admin et le directeur (hors cabinet) voient tous les documents.
         // Tout autre utilisateur ne voit que les documents qu'il a créés.
-        if (!$user->hasRole('admin') && !$user->hasRole('directeur')) {
+        if (! $user->hasRole('admin') && ! $user->hasRole('directeur')) {
             $query->where('author_id', $user->id);
         }
 
         $documents = $query
-            ->when($request->type, fn($q, $type) => $q->byType($type))
-            ->when($request->status, fn($q, $status) => $q->byStatus($status))
-            ->when($request->confidentiality, fn($q, $level) => $q->byConfidentiality($level))
-            ->when($request->search, fn($q, $term) => $q->search($term))
-            ->when($request->department_id, fn($q, $id) => $q->where('department_id', $id))
-            ->when($request->author_id, fn($q, $id) => $q->where('author_id', $id))
-            ->when($request->date_from, fn($q, $date) => $q->whereDate('document_date', '>=', $date))
-            ->when($request->date_to, fn($q, $date) => $q->whereDate('document_date', '<=', $date))
+            ->when($request->type, fn ($q, $type) => $q->byType($type))
+            ->when($request->status, fn ($q, $status) => $q->byStatus($status))
+            ->when($request->confidentiality, fn ($q, $level) => $q->byConfidentiality($level))
+            ->when($request->search, fn ($q, $term) => $q->search($term))
+            ->when($request->department_id, fn ($q, $id) => $q->where('department_id', $id))
+            ->when($request->author_id, fn ($q, $id) => $q->where('author_id', $id))
+            ->when($request->date_from, fn ($q, $date) => $q->whereDate('document_date', '>=', $date))
+            ->when($request->date_to, fn ($q, $date) => $q->whereDate('document_date', '<=', $date))
             ->orderBy($request->sort ?? 'created_at', $request->order ?? 'desc')
             ->paginate($request->per_page ?? 15);
 
@@ -72,7 +73,7 @@ public function index(Request $request): JsonResponse
             'currentWorkflowInstance.workflow',
         ])->findOrFail($id);
 
-        if (!$document->current_workflow_instance_id) {
+        if (! $document->current_workflow_instance_id) {
             return response()->json([
                 'data' => null,
                 'message' => 'Aucun workflow en cours pour ce document.',
@@ -125,7 +126,7 @@ public function index(Request $request): JsonResponse
         $validated = $request->validate([
             'subject' => ['required', 'string', 'max:500'],
             'document_type' => ['required', 'string', 'in:courrier_entrant,courrier_sortant,note,notification,decision,arrete,decret,circulaire,proces_verbal,rapport,contrat,convention,demande,conge,mission,facture,autre'],
-'flow_type' => ['sometimes', 'string', 'in:unique,mail_merge'],
+            'flow_type' => ['sometimes', 'string', 'in:unique,mail_merge'],
             // Version Présidence : le workflow n'est plus obligatoire à la création.
             // Le document est créé en brouillon, puis envoyé à la signature du Directeur de Cabinet.
             'workflow_id' => ['nullable', 'string', 'exists:workflows,id'],
@@ -153,7 +154,7 @@ public function index(Request $request): JsonResponse
         ], 201);
     }
 
-public function show(Request $request, string $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
         $user = $request->user();
 
@@ -168,12 +169,12 @@ public function show(Request $request, string $id): JsonResponse
         $isDirector = $user->hasRole('directeur_cabinet');
         $isAuthor = (string) $document->author_id === (string) $user->id;
 
-        if (!$isAdmin && !$isAuthor && !$isDirector) {
+        if (! $isAdmin && ! $isAuthor && ! $isDirector) {
             abort(403, 'Vous n\'êtes pas autorisé à consulter ce document.');
         }
 
         // Le Directeur de Cabinet ne peut consulter que les documents envoyés à la signature.
-        if ($isDirector && !$isAdmin && !$document->submitted_for_signature_at) {
+        if ($isDirector && ! $isAdmin && ! $document->submitted_for_signature_at) {
             abort(403, 'Ce document n\'a pas été envoyé à la signature.');
         }
 
@@ -231,6 +232,7 @@ public function show(Request $request, string $id): JsonResponse
     public function attachments(string $id): JsonResponse
     {
         $document = Document::findOrFail($id);
+
         return response()->json(['data' => $document->attachments]);
     }
 
@@ -244,7 +246,7 @@ public function show(Request $request, string $id): JsonResponse
         ]);
 
         $file = $request->file('file');
-        $path = $file->store('attachments/' . $document->id, 'public');
+        $path = $file->store('attachments/'.$document->id, 'public');
 
         $attachment = $document->attachments()->create([
             'original_name' => $file->getClientOriginalName(),
@@ -267,7 +269,7 @@ public function show(Request $request, string $id): JsonResponse
         $document = Document::findOrFail($id);
         $attachment = $document->attachments()->findOrFail($attachmentId);
 
-        \Illuminate\Support\Facades\Storage::disk('public')->delete($attachment->stored_path);
+        Storage::disk('public')->delete($attachment->stored_path);
         $attachment->delete();
 
         return response()->json(['message' => 'Fichier supprimé.']);
@@ -288,7 +290,6 @@ public function show(Request $request, string $id): JsonResponse
         $validated['document_id'] = (string) $id;
 
         $archive = $this->archiveDocumentUseCase->execute($validated, $request->user());
-
 
         return response()->json([
             'message' => 'Document archivé avec succès.',
@@ -316,7 +317,7 @@ public function show(Request $request, string $id): JsonResponse
                 'demande' => 'Demande',
                 'conge' => 'Congé',
                 'mission' => 'Mission',
-'facture' => 'Facture',
+                'facture' => 'Facture',
                 'autre' => 'Autre',
             ],
         ]);

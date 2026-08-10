@@ -373,7 +373,7 @@ const def = signatures.value.find((s) => s.is_default);
     selectedSignatureId.value = (def || signatures.value[0])?.id || "";
     // Pré-placer la signature à un emplacement par défaut pour que le bouton
     // « Signer » soit immédiatement actif (le Directeur peut ensuite le déplacer).
-    if (!placement.value && canSign.value) {
+    if (!placement.value && !roleDenied.value && documentSignable.value) {
       placement.value = { x: 50, y: 72 };
     }
   } catch (e) {

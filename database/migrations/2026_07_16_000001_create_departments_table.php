@@ -15,7 +15,7 @@ return new class extends Migration
             $table->ulid('parent_id')->nullable();
             $table->string('type')->default('service');
             $table->text('description')->nullable();
-$table->boolean('is_active')->default(true);
+            $table->boolean('is_active')->default(true);
             $table->softDeletes();
             $table->timestamps();
         });
