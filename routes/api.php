@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\SignatureController;
 use App\Http\Controllers\Api\TemplateController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WorkflowController;
+use App\Support\Access;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -27,19 +28,16 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
 
-// ==================== AUTHENTIFICATION ====================
+    // ==================== AUTHENTIFICATION ====================
     Route::prefix('auth')->group(function () {
-        Route::post('login', [AuthController::class, 'login']);
-        Route::post('register', [AuthController::class, 'register']);
-        Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
-        Route::post('reset-password', [AuthController::class, 'resetPassword']);
-
-        // Nombre de documents en attente (public, agrégé, pour la page de connexion)
-        Route::get('director-pending-count', [DirectorInboxController::class, 'pendingCount']);
+        Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login');
+        Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:password-reset');
+        Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:password-reset');
 
         Route::middleware('auth:sanctum')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
             Route::get('me', [AuthController::class, 'me']);
+            Route::get('director-pending-count', [DirectorInboxController::class, 'pendingCount']);
         });
     });
 
@@ -62,14 +60,12 @@ Route::prefix('v1')->group(function () {
         Route::get('documents/{document}/attachments', [DocumentController::class, 'attachments']);
         Route::post('documents/{document}/attachments', [DocumentController::class, 'uploadAttachment']);
         Route::delete('documents/{document}/attachments/{attachment}', [DocumentController::class, 'deleteAttachment']);
-Route::post('documents/{document}/archive', [DocumentController::class, 'archive']);
+        Route::post('documents/{document}/archive', [DocumentController::class, 'archive']);
         Route::get('documents/{document}/workflow-progress', [DocumentController::class, 'workflowProgress']);
-        // ---- WORKFLOW « ENVOI À LA SIGNATURE » (Directeur de Cabinet) ----
         Route::post('documents/{document}/submit-for-signature', [DocumentController::class, 'submitForSignature']);
         Route::post('documents/{document}/recall-signature', [DocumentController::class, 'recallSignature']);
         Route::post('documents/{document}/reject', [DocumentController::class, 'rejectForSignature']);
         Route::post('documents/{document}/sign', [DocumentController::class, 'signByDirector']);
-
 
         // ---- TEMPLATES (MODÈLES) ----
         Route::get('templates/variables', [TemplateController::class, 'variables']);
@@ -97,13 +93,12 @@ Route::post('documents/{document}/archive', [DocumentController::class, 'archive
         Route::get('mail-merge/variables', [MailMergeController::class, 'variables']);
         Route::get('mail-merge/{batch}/download', [MailMergeController::class, 'download']);
         Route::get('mail-merge/{batch}/workflow-progress', [MailMergeController::class, 'workflowProgress']);
-Route::post('mail-merge/{batch}/sign', [MailMergeController::class, 'sign']);
+        Route::post('mail-merge/{batch}/sign', [MailMergeController::class, 'sign']);
         Route::post('mail-merge/{batch}/recall-signature', [MailMergeController::class, 'recallSignature']);
         Route::post('mail-merge/{batch}/sign-campaign', [MailMergeController::class, 'signCampaign']);
         Route::apiResource('mail-merge', MailMergeController::class)->parameters(['mail-merge' => 'batch']);
 
-// ---- ARCHIVES ----
-        // Le paramètre 'archive_box' est important pour le route model binding dans UpdateArchiveBoxRequest
+        // ---- ARCHIVES ----
         Route::apiResource('archive-boxes', ArchiveBoxController::class)->parameters(['archive-boxes' => 'archive_box']);
         Route::get('archives/eligible-documents', [ArchiveController::class, 'eligibleDocuments']);
         Route::apiResource('archives', ArchiveController::class);
@@ -117,12 +112,12 @@ Route::post('mail-merge/{batch}/sign', [MailMergeController::class, 'sign']);
         Route::get('notifications', [NotificationController::class, 'index']);
 
         // ---- BOÎTE DE RÉCEPTION DU DIRECTEUR DE CABINET ----
-Route::get('director/inbox', [DirectorInboxController::class, 'index']);
+        Route::get('director/inbox', [DirectorInboxController::class, 'index']);
         Route::get('director/stats', [DirectorInboxController::class, 'stats']);
         Route::get('director/history', [DirectorInboxController::class, 'history']);
         Route::get('director/recent-rejected', [DirectorInboxController::class, 'recentRejected']);
 
-// ---- AUDIT / JOURNAL ----
+        // ---- AUDIT / JOURNAL ----
         Route::get('audit/events', [AuditController::class, 'events']);
         Route::get('audit/stats', [AuditController::class, 'stats']);
         Route::get('audit/signatures-history', [AuditController::class, 'signatures']);
@@ -133,11 +128,15 @@ Route::get('director/inbox', [DirectorInboxController::class, 'index']);
 
         // ---- RÔLES & PERMISSIONS ----
         Route::get('roles', function () {
+            Access::ensureAdmin(request()->user());
+
             return response()->json([
                 'data' => \Spatie\Permission\Models\Role::with('permissions')->get(),
             ]);
         });
         Route::get('permissions', function () {
+            Access::ensureAdmin(request()->user());
+
             return response()->json([
                 'data' => \Spatie\Permission\Models\Permission::all(),
             ]);
@@ -145,27 +144,48 @@ Route::get('director/inbox', [DirectorInboxController::class, 'index']);
 
         // ---- TABLEAU DE BORD ----
         Route::get('dashboard/stats', function () {
+            $user = request()->user();
+            $global = Access::canViewGlobalStats($user);
+
+            $documents = \App\Domains\Documents\Models\Document::query();
+            if (! $global) {
+                $documents->where('author_id', $user->id);
+            }
+
             $stats = [
-                'total_documents' => \App\Domains\Documents\Models\Document::count(),
-                'draft_documents' => \App\Domains\Documents\Models\Document::byStatus('draft')->count(),
-                'pending_documents' => \App\Domains\Documents\Models\Document::byStatus('pending')->count(),
-                'approved_documents' => \App\Domains\Documents\Models\Document::byStatus('approved')->count(),
-                'signed_documents' => \App\Domains\Documents\Models\Document::byStatus('signed')->count(),
-                'rejected_documents' => \App\Domains\Documents\Models\Document::byStatus('rejected')->count(),
-                'archived_documents' => \App\Domains\Documents\Models\Document::where('is_archived', true)->count(),
-                'total_users' => \App\Domains\Users\Models\User::count(),
-                'active_users' => \App\Domains\Users\Models\User::active()->count(),
-                'total_departments' => \App\Domains\Departments\Models\Department::count(),
-                'pending_approvals' => \App\Domains\Workflows\Models\WorkflowApproval::where('status', 'pending')->count(),
-                'active_workflows' => \App\Domains\Workflows\Models\WorkflowInstance::where('status', 'in_progress')->count(),
-                'documents_by_type' => \App\Domains\Documents\Models\Document::selectRaw('document_type, count(*) as total')
+                'total_documents' => (clone $documents)->count(),
+                'draft_documents' => (clone $documents)->where('status', 'draft')->count(),
+                'pending_documents' => (clone $documents)->where('status', 'pending')->count(),
+                'approved_documents' => (clone $documents)->where('status', 'approved')->count(),
+                'signed_documents' => (clone $documents)->where('status', 'signed')->count(),
+                'rejected_documents' => (clone $documents)->where('status', 'rejected')->count(),
+                'archived_documents' => (clone $documents)->where('is_archived', true)->count(),
+                'total_users' => $global ? \App\Domains\Users\Models\User::count() : 1,
+                'active_users' => $global ? \App\Domains\Users\Models\User::active()->count() : 1,
+                'total_departments' => $global ? \App\Domains\Departments\Models\Department::count() : 0,
+                'pending_approvals' => \App\Domains\Workflows\Models\WorkflowApproval::query()
+                    ->where('status', 'pending')
+                    ->when(! $global, fn ($q) => $q->where('approver_id', $user->id))
+                    ->count(),
+                'active_workflows' => \App\Domains\Workflows\Models\WorkflowInstance::query()
+                    ->where('status', 'in_progress')
+                    ->when(! $global, fn ($q) => $q->where('initiated_by', $user->id))
+                    ->count(),
+                'documents_by_type' => (clone $documents)->selectRaw('document_type, count(*) as total')
                     ->groupBy('document_type')->pluck('total', 'document_type'),
-                'documents_by_month' => \App\Domains\Documents\Models\Document::selectRaw("to_char(document_date, 'YYYY-MM') as month, count(*) as total")
+                'documents_by_month' => (clone $documents)->selectRaw(
+                    (\Illuminate\Support\Facades\DB::connection()->getDriverName() === 'sqlite'
+                        ? "strftime('%Y-%m', document_date)"
+                        : "to_char(document_date, 'YYYY-MM')") . ' as month, count(*) as total'
+                )
                     ->groupBy('month')->orderBy('month')->pluck('total', 'month'),
-                'documents_by_confidentiality' => \App\Domains\Documents\Models\Document::selectRaw('confidentiality, count(*) as total')
+                'documents_by_confidentiality' => (clone $documents)->selectRaw('confidentiality, count(*) as total')
                     ->groupBy('confidentiality')->pluck('total', 'confidentiality'),
-                'recent_activities' => \Spatie\Activitylog\Models\Activity::with('causer')
-                    ->latest()->limit(10)->get(),
+                'recent_activities' => $global
+                    ? \Spatie\Activitylog\Models\Activity::with('causer')->latest()->limit(10)->get()
+                    : \Spatie\Activitylog\Models\Activity::with('causer')
+                        ->where('causer_id', $user->id)
+                        ->latest()->limit(10)->get(),
             ];
 
             return response()->json(['data' => $stats]);

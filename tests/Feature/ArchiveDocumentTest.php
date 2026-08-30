@@ -23,6 +23,7 @@ class ArchiveDocumentTest extends TestCase
             'status' => 'draft',
             'is_archived' => false,
             'reference' => 'DOC-REF-TEST-001',
+            'author_id' => $actor->id,
         ]);
 
 

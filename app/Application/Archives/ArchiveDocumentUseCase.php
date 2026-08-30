@@ -18,6 +18,14 @@ final class ArchiveDocumentUseCase
     {
         $document = Document::query()->where('is_deleted', false)->findOrFail($input['document_id']);
 
+        abort_unless(
+            (string) $document->author_id === (string) $actor->id
+                || $actor->hasRole('admin')
+                || $actor->hasRole('archiviste'),
+            403,
+            'Vous n\'êtes pas autorisé à archiver ce document.'
+        );
+
 
         $boxId = (string) Arr::get($input, 'archive_box_id', '');
         /** @var ArchiveBox $box */

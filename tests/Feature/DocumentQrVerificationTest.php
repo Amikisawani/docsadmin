@@ -26,6 +26,7 @@ class DocumentQrVerificationTest extends TestCase
             'is_archived' => false,
             'is_deleted' => false,
             'reference' => 'DOC-QR-REF-1',
+            'author_id' => $actor->id,
         ]);
 
 

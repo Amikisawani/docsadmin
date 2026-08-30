@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domains\Archives\Models\ArchiveBox;
 use App\Http\Controllers\Controller;
+use App\Support\Access;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -27,6 +28,12 @@ class ArchiveBoxController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        abort_unless(
+            Access::isAdmin($request->user()) || $request->user()->hasRole('archiviste'),
+            403,
+            'Vous n\'êtes pas autorisé à créer une boîte d\'archives.'
+        );
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'category' => ['nullable', 'string', 'max:255'],
@@ -55,6 +62,12 @@ class ArchiveBoxController extends Controller
 
     public function update(Request $request, ArchiveBox $archive_box): JsonResponse
     {
+        abort_unless(
+            Access::isAdmin($request->user()) || $request->user()->hasRole('archiviste'),
+            403,
+            'Vous n\'êtes pas autorisé à modifier cette boîte d\'archives.'
+        );
+
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'category' => ['nullable', 'string', 'max:255'],
@@ -71,8 +84,14 @@ class ArchiveBoxController extends Controller
         ]);
     }
 
-    public function destroy(ArchiveBox $archive_box): JsonResponse
+    public function destroy(Request $request, ArchiveBox $archive_box): JsonResponse
     {
+        abort_unless(
+            Access::isAdmin($request->user()) || $request->user()->hasRole('archiviste'),
+            403,
+            'Vous n\'êtes pas autorisé à supprimer cette boîte d\'archives.'
+        );
+
         if ($archive_box->archives()->exists()) {
             return response()->json([
                 'message' => 'Impossible de supprimer une boîte contenant des archives.',

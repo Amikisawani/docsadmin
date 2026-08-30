@@ -55,6 +55,13 @@ final class SignDocumentUseCase
         // Guard: signature belongs to actor
         abort_unless((string)$signature->user_id === (string)$actor->id, 403, 'Cette signature ne vous appartient pas.');
 
+        // Guard: document must have been submitted for signature
+        abort_unless(
+            $document->submitted_for_signature_at !== null && $document->status === 'pending',
+            409,
+            'Ce document n\'est pas en attente de signature.'
+        );
+
         // Guard: idempotence - prevent duplicate signature record by (document, signature)
         $existing = DocumentSignature::query()
             ->where('document_id', $document->id)

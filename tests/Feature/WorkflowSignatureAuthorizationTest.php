@@ -25,7 +25,7 @@ class WorkflowSignatureAuthorizationTest extends TestCase
 
     {
         $actor = User::factory()->create();
-        $document = Document::factory()->create(['document_type' => 'note', 'status' => 'draft']);
+        $document = Document::factory()->create(['document_type' => 'note', 'status' => 'draft', 'author_id' => $actor->id]);
 
         $workflow = Workflow::factory()->create([
             'document_type' => 'note',
@@ -64,7 +64,11 @@ class WorkflowSignatureAuthorizationTest extends TestCase
         \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'directeur_cabinet', 'guard_name' => 'web']);
         $actor->assignRole('directeur_cabinet');
 
-        $document = Document::factory()->create(['hash' => 'abc123', 'status' => 'draft']);
+        $document = Document::factory()->create([
+            'hash' => 'abc123',
+            'status' => 'pending',
+            'submitted_for_signature_at' => now(),
+        ]);
 
         $signature = Signature::factory()->create([
             'user_id' => $actor->id,

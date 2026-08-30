@@ -19,7 +19,7 @@ class PublicDocumentVerificationController extends Controller
             ], 422);
         }
 
-        $document = Document::with(['author', 'department', 'signatures.signature', 'histories'])
+        $document = Document::with(['author:id,name', 'department:id,name', 'signatures.signer:id,name'])
             ->where('hash', $hash)
             ->first();
 
@@ -47,27 +47,20 @@ class PublicDocumentVerificationController extends Controller
                 'subject' => $document->subject,
                 'document_type' => $document->document_type,
                 'status' => $document->status,
-                'confidentiality' => $document->confidentiality,
                 'document_date' => optional($document->document_date)->toDateString(),
                 'hash' => $document->hash,
-                'qr_code_path' => $document->qr_code_path,
-'qr_anchor' => hash('sha256', 'AdminFlow|qr|' . (string) $document->hash),
+                'qr_anchor' => hash('sha256', 'AdminFlow|qr|' . (string) $document->hash),
                 'is_archived' => (bool) $document->is_archived,
                 'author' => $document->author ? [
-                    'id' => $document->author->id,
                     'name' => $document->author->name,
                 ] : null,
                 'department' => $document->department ? [
-                    'id' => $document->department->id,
                     'name' => $document->department->name,
                 ] : null,
                 'signatures' => $document->signatures->map(fn($ds) => [
-                    'signature_id' => $ds->signature_id,
                     'type' => $ds->type,
-                    'hash_signature' => $ds->hash_signature,
                     'signed_at' => optional($ds->signed_at)->toIso8601String(),
                     'signed_by' => $ds->signer ? [
-                        'id' => $ds->signer->id,
                         'name' => $ds->signer->name,
                     ] : null,
                 ])->values(),

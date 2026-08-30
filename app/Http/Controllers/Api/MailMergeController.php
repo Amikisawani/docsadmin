@@ -155,6 +155,12 @@ $validated = $request->validate([
 
         // Le document source doit être de type publipostage
         $sourceDocument = Document::query()->findOrFail($validated['document_id']);
+        abort_unless(
+            (string) $sourceDocument->author_id === (string) $request->user()->id
+                || $request->user()->hasRole('admin'),
+            403,
+            'Vous ne pouvez publiposter que vos propres documents.'
+        );
         if ($sourceDocument->flow_type !== 'mail_merge') {
             return response()->json([
                 'message' => 'Seuls les documents de type « publipostage » peuvent être utilisés pour un publipostage.',
@@ -226,6 +232,10 @@ $validated = $request->validate([
             ->where('flow_type', 'mail_merge')
             ->where('is_deleted', false)
             ->whereIn('status', ['draft', 'approved', 'signed'])
+            ->when(
+                ! $request->user()->hasRole('admin'),
+                fn ($q) => $q->where('author_id', $request->user()->id)
+            )
             ->when($request->search, fn ($q, $term) => $q->search($term))
             ->orderBy('updated_at', 'desc')
             ->limit(100)
@@ -374,19 +384,21 @@ $validated = $request->validate([
         return response()->json(['message' => 'Campagne de publipostage supprimée.']);
     }
 
-private function authorizeBatch(MailMergeBatch $batch, ?User $user): void
+    private function authorizeBatch(MailMergeBatch $batch, ?User $user): void
     {
-        if (!$user) {
-            return;
-        }
+        abort_unless($user, 401, 'Authentification requise.');
 
-        // Le Directeur de Cabinet peut consulter les campagnes envoyées à la signature
-        // (en attente de signature, signées ou rejetées).
         if ($user->hasRole('directeur_cabinet')) {
+            abort_unless(
+                in_array($batch->status, ['pending_signature', 'signed', 'rejected'], true),
+                403,
+                'Cette campagne n\'est pas destinée à la signature.'
+            );
+
             return;
         }
 
-        if ($batch->created_by !== $user->id && !$user->hasRole('admin')) {
+        if ($batch->created_by !== $user->id && ! $user->hasRole('admin')) {
             abort(403, 'Cette campagne ne vous appartient pas.');
         }
     }

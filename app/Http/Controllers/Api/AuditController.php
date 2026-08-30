@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\Access;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Spatie\Activitylog\Models\Activity;
@@ -11,6 +12,8 @@ class AuditController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        Access::ensureCanReadAudit($request->user());
+
         $logs = Activity::with('causer')
             ->when($request->search, fn($q, $term) => $q->where('description', 'like', "%{$term}%"))
             ->when($request->event, fn($q, $event) => $q->where('description', $event))
@@ -23,14 +26,17 @@ class AuditController extends Controller
         return response()->json(['data' => $logs]);
     }
 
-    public function show(string $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
+        Access::ensureCanReadAudit($request->user());
         $log = Activity::with('causer')->findOrFail($id);
         return response()->json(['data' => $log]);
     }
 
-    public function events(): JsonResponse
+    public function events(Request $request): JsonResponse
     {
+        Access::ensureCanReadAudit($request->user());
+
         $events = Activity::select('description')
             ->distinct()
             ->orderBy('description')
@@ -39,8 +45,10 @@ class AuditController extends Controller
         return response()->json(['data' => $events]);
     }
 
-public function stats(): JsonResponse
+    public function stats(Request $request): JsonResponse
     {
+        Access::ensureCanReadAudit($request->user());
+
         $stats = [
             'total_logs' => Activity::count(),
             'logs_by_event' => Activity::selectRaw('description, count(*) as total')
@@ -71,6 +79,8 @@ public function stats(): JsonResponse
      */
     public function signatures(Request $request): JsonResponse
     {
+        Access::ensureCanReadAudit($request->user());
+
         $logs = Activity::with('causer')
             ->whereIn('description', ['signed', 'signature_created', 'signature_recalled'])
             ->when($request->search, fn($q, $term) => $q->where('properties', 'like', "%{$term}%"))
@@ -88,6 +98,8 @@ public function stats(): JsonResponse
      */
     public function rejections(Request $request): JsonResponse
     {
+        Access::ensureCanReadAudit($request->user());
+
         $logs = Activity::with('causer')
             ->whereIn('description', ['signature_rejected', 'workflow_rejected', 'document_rejected'])
             ->when($request->search, fn($q, $term) => $q->where('properties', 'like', "%{$term}%"))
@@ -105,6 +117,8 @@ public function stats(): JsonResponse
      */
     public function directorActivity(Request $request): JsonResponse
     {
+        Access::ensureCanReadAudit($request->user());
+
         $director = \App\Domains\Users\Models\User::role('directeur_cabinet')->first();
 
         $logs = Activity::with('causer')

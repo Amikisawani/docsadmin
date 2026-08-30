@@ -6,6 +6,7 @@ use App\Domains\Workflows\Models\Workflow;
 use App\Domains\Workflows\Models\WorkflowInstance;
 use App\Domains\Workflows\Models\WorkflowApproval;
 use App\Http\Controllers\Controller;
+use App\Support\Access;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -37,6 +38,8 @@ class WorkflowController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        Access::ensureCanManageWorkflows($request->user());
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -65,6 +68,7 @@ class WorkflowController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $workflow = Workflow::findOrFail($id);
+        Access::ensureCanManageWorkflows($request->user());
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
@@ -85,8 +89,9 @@ class WorkflowController extends Controller
         ]);
     }
 
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
+        Access::ensureCanManageWorkflows($request->user());
         $workflow = Workflow::findOrFail($id);
 
         if ($workflow->instances()->whereIn('status', ['in_progress', 'pending'])->count() > 0) {
@@ -106,7 +111,15 @@ class WorkflowController extends Controller
 
     public function instances(Request $request): JsonResponse
     {
+        $user = $request->user();
+
         $instances = WorkflowInstance::with(['workflow', 'document', 'initiator', 'approvals.approver'])
+            ->when(! Access::isAdmin($user), function ($q) use ($user) {
+                $q->where(function ($q) use ($user) {
+                    $q->where('initiated_by', $user->id)
+                        ->orWhereHas('approvals', fn ($a) => $a->where('approver_id', $user->id));
+                });
+            })
             ->when($request->status, fn($q, $status) => $q->byStatus($status))
             ->when($request->workflow_id, fn($q, $id) => $q->where('workflow_id', $id))
             ->when($request->user_id, fn($q, $id) => $q->where('initiated_by', $id))

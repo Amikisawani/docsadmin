@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domains\Departments\Models\Department;
 use App\Http\Controllers\Controller;
+use App\Support\Access;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -32,6 +33,8 @@ class DepartmentController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        Access::ensureCanManageDepartments($request->user());
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'code' => ['required', 'string', 'max:50', 'unique:departments'],
@@ -58,6 +61,7 @@ class DepartmentController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $department = Department::findOrFail($id);
+        Access::ensureCanManageDepartments($request->user());
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
@@ -76,8 +80,9 @@ class DepartmentController extends Controller
         ]);
     }
 
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
+        Access::ensureCanManageDepartments($request->user());
         $department = Department::findOrFail($id);
 
         if ($department->users()->count() > 0) {

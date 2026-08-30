@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Domains\Documents\Models\Document;
 use App\Domains\MailMerge\Models\MailMergeBatch;
 use App\Http\Controllers\Controller;
+use App\Support\Access;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -38,10 +39,14 @@ class DirectorInboxController extends Controller
             ->when($request->date_from, fn ($q, $date) => $q->whereDate('submitted_for_signature_at', '>=', $date))
             ->when($request->date_to, fn ($q, $date) => $q->whereDate('submitted_for_signature_at', '<=', $date));
 
-        $order = $request->order ?? 'desc';
-        $sort = $request->sort ?? 'submitted_for_signature_at';
+        $order = Access::sanitizeOrder($request->order);
+        $sort = Access::sanitizeSort(
+            $request->sort,
+            ['submitted_for_signature_at', 'created_at', 'updated_at', 'priority', 'subject', 'deadline'],
+            'submitted_for_signature_at'
+        );
 
-$documents = $query->orderBy($sort, $order)->paginate($request->per_page ?? 20);
+        $documents = $query->orderBy($sort, $order)->paginate(Access::perPage($request->per_page, 20));
 
 // Campagnes de publipostage envoyées à la signature (à signer par le Directeur de Cabinet).
         // On inclut aussi les campagnes générées (completed / awaiting_workflow avec documents
@@ -95,27 +100,25 @@ $documents = $query->orderBy($sort, $order)->paginate($request->per_page ?? 20);
       * Nombre de documents en attente pour le Directeur de Cabinet.
       * Utilisé notamment par la page de connexion pour afficher « X documents en attente ».
       */
-    public function pendingCount(): JsonResponse
+    public function pendingCount(Request $request): JsonResponse
     {
-        $director = \App\Domains\Users\Models\User::role('directeur_cabinet')->where('is_active', true)->first();
+        abort_unless(
+            $request->user()->hasRole('directeur_cabinet') || $request->user()->hasRole('admin'),
+            403,
+            'Accès réservé au Directeur de Cabinet.'
+        );
 
-        // Cette route est publique (pré-connexion) : on ne renvoie qu'un nombre agrégé.
-        $count = 0;
-        $newToday = 0;
-        if ($director) {
-            $base = Document::query()
-                ->notDeleted()
-                ->notArchived()
-                ->whereNotNull('submitted_for_signature_at');
-            $count = (clone $base)->where('status', 'pending')->count();
-            $newToday = (clone $base)->where('status', 'pending')->whereDate('submitted_for_signature_at', today())->count();
-        }
+        $base = Document::query()
+            ->notDeleted()
+            ->notArchived()
+            ->whereNotNull('submitted_for_signature_at');
+        $count = (clone $base)->where('status', 'pending')->count();
+        $newToday = (clone $base)->where('status', 'pending')->whereDate('submitted_for_signature_at', today())->count();
 
         return response()->json([
             'data' => [
                 'pending_count' => $count,
                 'new_today_count' => $newToday,
-                'has_director' => $director !== null,
             ],
         ]);
     }
