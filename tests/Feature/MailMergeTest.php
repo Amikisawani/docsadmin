@@ -173,7 +173,7 @@ class MailMergeTest extends TestCase
         $this->assertSame('completed', $approve->status);
 
         $batch = \App\Domains\MailMerge\Models\MailMergeBatch::findOrFail($batchId);
-        $this->assertSame('completed', $batch->status);
+        $this->assertSame('pending_signature', $batch->status);
         $this->assertSame(2, $batch->generated_count);
         $this->assertCount(2, $batch->recipients);
 

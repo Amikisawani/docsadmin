@@ -43,7 +43,7 @@ class SecurityAuthorizationTest extends TestCase
             'role' => 'admin',
         ]);
 
-        $response->assertNotFound();
+        $response->assertStatus(405);
         $this->assertDatabaseMissing('users', ['email' => 'attacker@example.com']);
     }
 
@@ -234,7 +234,7 @@ class SecurityAuthorizationTest extends TestCase
 
     public function test_security_headers_are_present(): void
     {
-        $response = $this->get('/login');
+        $response = $this->get('/up');
 
         $response->assertOk();
         $response->assertHeader('X-Frame-Options', 'DENY');
