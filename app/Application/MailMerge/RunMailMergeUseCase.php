@@ -9,6 +9,7 @@ use App\Domains\MailMerge\Models\MailMergeBatch;
 use App\Domains\MailMerge\Models\MailMergeRecipient;
 use App\Domains\Templates\Models\Template;
 use App\Domains\Users\Models\User;
+use App\Support\StoredFile;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\PhpWord;
@@ -276,7 +277,7 @@ $batch->update([
 
             // Repli : extraire le texte du fichier source .docx si disponible
             if (trim($content) === '' && $document->source_file_path && Storage::disk('public')->exists($document->source_file_path)) {
-                $content = $this->extractDocxText(Storage::disk('public')->path($document->source_file_path));
+                $content = StoredFile::withLocal($document->source_file_path, fn (string $local) => $this->extractDocxText($local));
             }
 
             if (trim($content) === '') {
@@ -291,14 +292,13 @@ $batch->update([
 
         // 2) Fichier source uploadé
         if (!empty($batch->source_file_path) && Storage::disk('public')->exists($batch->source_file_path)) {
-            $path = Storage::disk('public')->path($batch->source_file_path);
             $ext = strtolower(pathinfo($batch->source_file_path, PATHINFO_EXTENSION));
 
-            return match ($ext) {
-                'docx' => $this->extractDocxText($path),
-                'pdf' => $this->extractPdfText($path),
+            return StoredFile::withLocal($batch->source_file_path, fn (string $local) => match ($ext) {
+                'docx' => $this->extractDocxText($local),
+                'pdf' => $this->extractPdfText($local),
                 default => (string) Storage::disk('public')->get($batch->source_file_path),
-            };
+            });
         }
 
         // 3) Template pré-enregistré (rétro-compatibilité)
@@ -361,10 +361,12 @@ $batch->update([
     private function resolveRecipients(MailMergeBatch $batch, array $input): array
     {
         if (!empty($batch->recipients_file_path) && Storage::disk('public')->exists($batch->recipients_file_path)) {
-            $path = Storage::disk('public')->path($batch->recipients_file_path);
             $originalName = basename($batch->recipients_file_path);
 
-            return $this->recipientFileParser->parse($path, $originalName);
+            return StoredFile::withLocal(
+                $batch->recipients_file_path,
+                fn (string $local) => $this->recipientFileParser->parse($local, $originalName)
+            );
         }
 
         return $input['recipients'] ?? [];

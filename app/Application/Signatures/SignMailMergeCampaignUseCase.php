@@ -7,6 +7,7 @@ use App\Domains\MailMerge\Models\MailMergeRecipient;
 use App\Domains\Notifications\Services\NotificationService;
 use App\Domains\Signatures\Models\Signature;
 use App\Domains\Users\Models\User;
+use App\Support\StoredFile;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -248,7 +249,7 @@ HTML;
         $content = (string) ($document?->content ?? '');
 
         if (trim($content) === '' && $document?->source_file_path && Storage::disk('public')->exists($document->source_file_path)) {
-            $content = $this->extractDocxText(Storage::disk('public')->path($document->source_file_path));
+            $content = StoredFile::withLocal($document->source_file_path, fn (string $local) => $this->extractDocxText($local));
         }
 
         if (trim($content) === '') {
@@ -278,10 +279,10 @@ HTML;
             return null;
         }
 
-        $full = $disk->path($signature->image_path);
-        $mime = mime_content_type($full) ?: 'image/png';
+        $bytes = $disk->get($signature->image_path);
+        $mime = $disk->mimeType($signature->image_path) ?: 'image/png';
 
-        return 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($full));
+        return 'data:'.$mime.';base64,'.base64_encode((string) $bytes);
     }
 
     private function buildSignedZip(MailMergeBatch $batch, string $signedDir): ?string

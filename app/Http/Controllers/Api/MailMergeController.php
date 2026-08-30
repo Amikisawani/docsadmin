@@ -208,18 +208,19 @@ $validated = $request->validate([
             'recipients_file' => ['required', 'file', 'mimes:xls,xlsx,txt,csv,tsv', 'max:10240'],
         ]);
 
-        $path = $request->file('recipients_file')->store('mailmerge/preview', 'public');
-        $fullPath = Storage::disk('public')->path($path);
-        $originalName = $request->file('recipients_file')->getClientOriginalName();
+        $file = $request->file('recipients_file');
+        $fullPath = $file->getRealPath();
+        $originalName = $file->getClientOriginalName();
+
+        if ($fullPath === false) {
+            return response()->json(['message' => 'Fichier illisible.'], 422);
+        }
 
         try {
             $preview = $this->recipientFileParser->preview($fullPath, $originalName);
         } catch (\Throwable $e) {
-            Storage::disk('public')->delete($path);
             return response()->json(['message' => 'Fichier illisible : ' . $e->getMessage()], 422);
         }
-
-        Storage::disk('public')->delete($path);
 
         return response()->json(['data' => $preview]);
     }
