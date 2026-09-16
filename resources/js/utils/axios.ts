@@ -16,6 +16,9 @@ apiClient.interceptors.request.use((config) => {
     // poser le Content-Type multipart avec le boundary adéquat.
     // Sinon on force le JSON pour les appels API classiques.
     if (config.data instanceof FormData) {
+        if (typeof config.headers?.set === 'function') {
+            config.headers.set('Content-Type', null);
+        }
         delete config.headers['Content-Type'];
     } else {
         config.headers['Content-Type'] = 'application/json';

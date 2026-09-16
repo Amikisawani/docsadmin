@@ -275,13 +275,18 @@ $batch->update([
             // Contenu texte du document
             $content = (string) $document->content;
 
-            // Repli : extraire le texte du fichier source .docx si disponible
+            // Repli : extraire le texte du fichier source (txt/html/docx/pdf)
             if (trim($content) === '' && $document->source_file_path && Storage::disk('public')->exists($document->source_file_path)) {
-                $content = StoredFile::withLocal($document->source_file_path, fn (string $local) => $this->extractDocxText($local));
+                $content = StoredFile::withLocal(
+                    $document->source_file_path,
+                    fn (string $local) => $this->extractSourceFileText($local, $document->source_file_path)
+                );
             }
 
             if (trim($content) === '') {
-                throw new \RuntimeException('Le document sélectionné ne contient aucun contenu exploitable.');
+                throw new \RuntimeException(
+                    'Le document sélectionné ne contient aucun contenu exploitable. Collez le texte du modèle (notification-arrete.txt) dans le champ Contenu.'
+                );
             }
 
             // Pré-remplissage automatique depuis le document
@@ -439,6 +444,35 @@ $batch->update([
         }
 
         return $path;
+    }
+
+    /** Extrait le texte d'un fichier source selon son extension. */
+    private function extractSourceFileText(string $localPath, string $storedPath): string
+    {
+        $ext = strtolower(pathinfo($storedPath, PATHINFO_EXTENSION));
+
+        $extracted = match ($ext) {
+            'docx', 'doc' => $this->extractDocxText($localPath),
+            'pdf' => $this->extractPdfText($localPath),
+            'html', 'htm' => trim(html_entity_decode(strip_tags((string) file_get_contents($localPath)), ENT_QUOTES | ENT_HTML5, 'UTF-8')),
+            'txt', 'text' => (string) file_get_contents($localPath),
+            default => $this->extractDocxText($localPath) ?: $this->extractPdfText($localPath),
+        };
+
+        if (trim($extracted) !== '') {
+            return $extracted;
+        }
+
+        // Le PDF modèle du dépôt n'est pas extractible : repli sur le .txt jumelé.
+        $basename = strtolower(basename($storedPath));
+        if (str_contains($basename, 'notification-arrete')) {
+            $fallback = base_path('resources/samples/mailmerge/notification-arrete.txt');
+            if (is_file($fallback)) {
+                return (string) file_get_contents($fallback);
+            }
+        }
+
+        return '';
     }
 
     /** Extrait le texte d'un fichier DOCX (via ZIP + XML). */

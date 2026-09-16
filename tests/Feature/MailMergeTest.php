@@ -317,7 +317,10 @@ class MailMergeTest extends TestCase
 
         $batch = \App\Domains\MailMerge\Models\MailMergeBatch::findOrFail($batchId);
         $this->assertSame('failed', $batch->status);
-        $this->assertContains('Le document sélectionné ne contient aucun contenu exploitable.', $batch->errors ?? []);
+        $this->assertStringContainsString(
+            'ne contient aucun contenu exploitable',
+            implode(' ', (array) ($batch->errors ?? []))
+        );
     }
 
     public function test_mail_merge_index_lists_only_own_batches(): void
