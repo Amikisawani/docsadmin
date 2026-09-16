@@ -159,7 +159,9 @@ async function loadDirectorPendingCount() {
 }
 
 onMounted(() => {
-  if (directorPanelVisible.value) {
+  // L'endpoint est protégé par Sanctum : sans token, l'appel 401 relançait
+  // un rechargement de /login. On n'interroge que si une session API existe.
+  if (directorPanelVisible.value && localStorage.getItem('token')) {
     loadDirectorPendingCount();
   }
 });

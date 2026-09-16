@@ -7,7 +7,13 @@ export default defineConfig({
     plugins: [
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.ts'],
-            refresh: true,
+            refresh: [
+                'app/**',
+                'routes/**',
+                'resources/views/**',
+                'lang/**',
+                'resources/lang/**',
+            ],
         }),
         vue({
             template: {
@@ -28,7 +34,12 @@ export default defineConfig({
             port: 5173,
         },
         watch: {
-            ignored: ['**/storage/framework/views/**'],
+            ignored: [
+                '**/storage/**',
+                '**/database/**/*.sqlite*',
+                '**/vendor/**',
+                '**/public/build/**',
+            ],
         },
     },
     resolve: {

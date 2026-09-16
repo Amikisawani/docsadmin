@@ -14,14 +14,25 @@ class ExampleTest extends TestCase
     }
 
     /**
-     * La racine redirige un visiteur non authentifie vers la page de login.
+     * La racine sert le shell SPA. L'auth est gérée côté Vue (token Sanctum),
+     * pas par une redirection de session web — sinon le tableau de bord se
+     * recharge en boucle pour un utilisateur déjà connecté via l'API.
      */
-    public function test_root_redirects_guest_to_login(): void
+    public function test_root_serves_spa_shell_for_guests(): void
     {
         $response = $this->get('/');
 
-        $response->assertStatus(302);
-        $response->assertRedirect('/login');
+        $response->assertOk();
+        $response->assertSee('id="app"', false);
+        $this->assertFalse($response->isRedirect());
+    }
+
+    public function test_spa_deep_link_serves_shell_without_session_redirect(): void
+    {
+        $response = $this->get('/documents');
+
+        $response->assertOk();
+        $this->assertFalse($response->isRedirect());
     }
 
     /**

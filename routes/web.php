@@ -24,10 +24,11 @@ Route::get('/login', function () {
     return view('app');
 });
 
+// La SPA s'authentifie via un token Sanctum (localStorage), pas via la session
+// web. Un redirect auth()->check() ici renvoie les utilisateurs connectés vers
+// /login à chaque rechargement de `/`, et Vue les renvoie ensuite au tableau
+// de bord : la page d'accueil s'actualise en boucle. L'accès réel reste protégé
+// par auth:sanctum sur /api/v1 et par les gardes Vue Router.
 Route::get('/{any?}', function () {
-    if (!auth()->check()) {
-        return redirect('/login');
-    }
-
     return view('app');
 })->where('any', '.*');
