@@ -117,6 +117,25 @@ class SecurityAuthorizationTest extends TestCase
         $this->assertFalse((bool) $document->is_deleted);
     }
 
+    public function test_author_can_delete_own_document(): void
+    {
+        $agent = $this->agent();
+        $document = Document::factory()->create([
+            'author_id' => $agent->id,
+            'status' => 'draft',
+            'subject' => 'Brouillon à supprimer',
+        ]);
+
+        $this->actingAs($agent, 'sanctum');
+
+        $this->deleteJson('/api/v1/documents/'.$document->id)
+            ->assertOk()
+            ->assertJsonPath('message', 'Document supprimé avec succès.');
+
+        $document->refresh();
+        $this->assertTrue((bool) $document->is_deleted);
+    }
+
     public function test_agent_cannot_forge_signed_status_on_own_document(): void
     {
         $agent = $this->agent();
