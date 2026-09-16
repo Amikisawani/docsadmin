@@ -171,16 +171,9 @@ final class SignMailMergeCampaignUseCase
         User $actor,
         array $position
     ): string {
-        $disk = Storage::disk('public');
-        $output = (string) ($recipient->output_path ?? '');
-        $ext = strtolower((string) pathinfo($output, PATHINFO_EXTENSION));
-
-        if ($output !== '' && $ext === 'pdf' && $disk->exists($output)) {
-            try {
-                return $this->stampExistingPdf($output, $signature, $actor, $position);
-            } catch (Throwable $e) {
-                Log::warning('Tampon PDF campagne impossible, repli texte : '.$e->getMessage());
-            }
+        $pdfBytes = $this->findRecipientPdfBytes($batch, $recipient);
+        if ($pdfBytes !== null) {
+            return $this->stampPdfBytes($pdfBytes, $signature, $actor, $position);
         }
 
         $content = $this->resolveRecipientContent($batch, $recipient);
@@ -188,53 +181,213 @@ final class SignMailMergeCampaignUseCase
         return $this->renderSignedPdfFromHtml($batch, $recipient, $signature, $actor, $position, $content);
     }
 
-    private function stampExistingPdf(string $storedPath, Signature $signature, User $actor, array $position): string
+    /**
+     * Récupère les octets du PDF déjà généré : chemin enregistré, dossier
+     * de la campagne, ou ZIP regroupé. On ne dépend pas d'un chemin disque
+     * natif (Windows / fichier verrouillé par l'aperçu Firefox).
+     */
+    private function findRecipientPdfBytes(MailMergeBatch $batch, MailMergeRecipient $recipient): ?string
     {
+        $disk = Storage::disk('public');
+        $raw = (string) ($recipient->output_path ?? '');
+        $normalized = str_replace('\\', '/', $raw);
+
+        $candidates = [];
+        foreach ([$raw, $normalized, ltrim($normalized, '/')] as $path) {
+            if ($path !== '') {
+                $candidates[] = $path;
+            }
+        }
+        if (str_starts_with($normalized, 'storage/')) {
+            $candidates[] = substr($normalized, strlen('storage/'));
+        }
+
+        foreach (array_unique($candidates) as $path) {
+            if (strtolower((string) pathinfo($path, PATHINFO_EXTENSION)) !== 'pdf') {
+                continue;
+            }
+            $bytes = $this->readPdfBytes($path);
+            if ($bytes !== null) {
+                return $bytes;
+            }
+        }
+
+        $slug = $this->slugify((string) ($recipient->name ?: $recipient->destinataire));
+        $batchDir = 'mailmerge/'.$batch->id;
+        try {
+            foreach ($disk->allFiles($batchDir) as $file) {
+                $fileKey = str_replace('\\', '/', $file);
+                if (str_contains($fileKey, '/signed/')) {
+                    continue;
+                }
+                if (strtolower((string) pathinfo($file, PATHINFO_EXTENSION)) !== 'pdf') {
+                    continue;
+                }
+                if ($slug !== '' && ! str_contains(strtolower($fileKey), $slug)) {
+                    continue;
+                }
+                $bytes = $this->readPdfBytes($file);
+                if ($bytes !== null) {
+                    return $bytes;
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning('Lecture dossier campagne '.$batchDir.' : '.$e->getMessage());
+        }
+
+        if (! empty($batch->zip_path)) {
+            $fromZip = $this->pdfBytesFromZip((string) $batch->zip_path, $slug, $normalized);
+            if ($fromZip !== null) {
+                return $fromZip;
+            }
+        }
+
+        return null;
+    }
+
+    private function readPdfBytes(string $path): ?string
+    {
+        $disk = Storage::disk('public');
+        if (! $disk->exists($path)) {
+            return null;
+        }
+
+        $bytes = (string) $disk->get($path);
+
+        return $this->isPdf($bytes) ? $bytes : null;
+    }
+
+    private function pdfBytesFromZip(string $zipPath, string $slug, string $outputPath): ?string
+    {
+        $disk = Storage::disk('public');
+        if (! $disk->exists($zipPath)) {
+            return null;
+        }
+
+        $zipBytes = (string) $disk->get($zipPath);
+        if ($zipBytes === '') {
+            return null;
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'afzip');
+        $named = $tmp.'.zip';
+        @unlink($tmp);
+        file_put_contents($named, $zipBytes);
+
+        $zip = new ZipArchive();
+        if ($zip->open($named) !== true) {
+            @unlink($named);
+
+            return null;
+        }
+
+        try {
+            $want = $outputPath !== '' ? strtolower(basename($outputPath)) : '';
+            $matched = [];
+
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $name = (string) $zip->getNameIndex($i);
+                if ($name === '' || ! str_ends_with(strtolower($name), '.pdf')) {
+                    continue;
+                }
+                $data = $zip->getFromIndex($i);
+                if (! is_string($data) || ! $this->isPdf($data)) {
+                    continue;
+                }
+                $base = strtolower(basename($name));
+                if ($want !== '' && $base === $want) {
+                    return $data;
+                }
+                if ($slug !== '' && str_contains($base, $slug)) {
+                    $matched[] = $data;
+                }
+            }
+
+            return $matched[0] ?? null;
+        } finally {
+            $zip->close();
+            @unlink($named);
+        }
+    }
+
+    private function stampPdfBytes(string $pdfBytes, Signature $signature, User $actor, array $position): string
+    {
+        if (! class_exists(Fpdi::class)) {
+            throw new \RuntimeException(
+                'Dépendances de signature PDF manquantes. Exécutez « composer install » (setasign/fpdi, tecnickcom/tcpdf).'
+            );
+        }
+
+        if (! $this->isPdf($pdfBytes)) {
+            throw new \RuntimeException('Le fichier généré n\'est pas un PDF valide.');
+        }
+
+        $srcTmp = tempnam(sys_get_temp_dir(), 'afpdf');
+        $srcPdf = $srcTmp.'.pdf';
+        @unlink($srcTmp);
+        file_put_contents($srcPdf, $pdfBytes);
+
         $sigTmp = $this->writeSignatureTempFile($signature);
 
         try {
-            return StoredFile::withLocal($storedPath, function (string $local) use ($sigTmp, $actor, $position) {
-                if (! is_file($local) || filesize($local) < 8) {
-                    throw new \RuntimeException('Fichier PDF source illisible.');
+            try {
+                return $this->fpdiStamp($srcPdf, $sigTmp, $actor, $position);
+            } catch (Throwable $e) {
+                if ($sigTmp === null) {
+                    throw $e;
                 }
+                Log::warning('Tampon image impossible, repli nom du signataire : '.$e->getMessage());
 
-                $pdf = new Fpdi();
-                $pdf->setPrintHeader(false);
-                $pdf->setPrintFooter(false);
-                $pdf->SetAutoPageBreak(false);
-                $pdf->SetMargins(0, 0, 0);
-
-                $pageCount = $pdf->setSourceFile($local);
-
-                for ($page = 1; $page <= $pageCount; $page++) {
-                    $tpl = $pdf->importPage($page);
-                    $size = $pdf->getTemplateSize($tpl);
-                    $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
-                    $pdf->useTemplate($tpl, 0, 0, $size['width'], $size['height'], true);
-
-                    $imgW = min(48.0, $size['width'] * 0.28);
-                    $x = (($position['x'] ?? 68) / 100) * $size['width'] - ($imgW / 2);
-                    $y = (($position['y'] ?? 82) / 100) * $size['height'] - 10;
-                    $x = max(6, min($x, $size['width'] - $imgW - 6));
-                    $y = max(6, min($y, $size['height'] - 22));
-
-                    if ($sigTmp) {
-                        $pdf->Image($sigTmp, $x, $y, $imgW);
-                    } else {
-                        $pdf->SetFont('helvetica', 'I', 12);
-                        $pdf->SetTextColor(15, 23, 42);
-                        $pdf->SetXY($x, $y);
-                        $pdf->Cell($imgW, 8, $actor->name, 0, 0, 'C');
-                    }
-                }
-
-                return $pdf->Output('signed.pdf', 'S');
-            });
+                return $this->fpdiStamp($srcPdf, null, $actor, $position);
+            }
         } finally {
+            @unlink($srcPdf);
             if ($sigTmp) {
                 @unlink($sigTmp);
             }
         }
+    }
+
+    private function fpdiStamp(string $localPdf, ?string $sigTmp, User $actor, array $position): string
+    {
+        if (! is_file($localPdf) || filesize($localPdf) < 8) {
+            throw new \RuntimeException('Fichier PDF source illisible.');
+        }
+
+        $pdf = new Fpdi();
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetAutoPageBreak(false);
+        $pdf->SetMargins(0, 0, 0);
+
+        $pageCount = $pdf->setSourceFile($localPdf);
+        if ($pageCount < 1) {
+            throw new \RuntimeException('Le PDF généré ne contient aucune page.');
+        }
+
+        for ($page = 1; $page <= $pageCount; $page++) {
+            $tpl = $pdf->importPage($page);
+            $size = $pdf->getTemplateSize($tpl);
+            $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+            $pdf->useTemplate($tpl, 0, 0, $size['width'], $size['height'], true);
+
+            $imgW = min(48.0, $size['width'] * 0.28);
+            $x = (($position['x'] ?? 68) / 100) * $size['width'] - ($imgW / 2);
+            $y = (($position['y'] ?? 82) / 100) * $size['height'] - 10;
+            $x = max(6, min($x, $size['width'] - $imgW - 6));
+            $y = max(6, min($y, $size['height'] - 22));
+
+            if ($sigTmp) {
+                $pdf->Image($sigTmp, $x, $y, $imgW);
+            } else {
+                $pdf->SetFont('helvetica', 'I', 12);
+                $pdf->SetTextColor(15, 23, 42);
+                $pdf->SetXY($x, $y);
+                $pdf->Cell($imgW, 8, $actor->name, 0, 0, 'C');
+            }
+        }
+
+        return $pdf->Output('signed.pdf', 'S');
     }
 
     private function writeSignatureTempFile(Signature $signature): ?string
@@ -253,13 +406,45 @@ final class SignMailMergeCampaignUseCase
             return null;
         }
 
-        $ext = strtolower((string) pathinfo($signature->image_path, PATHINFO_EXTENSION)) ?: 'png';
+        $info = @getimagesizefromstring($bytes);
+        $mime = is_array($info) ? (string) ($info['mime'] ?? '') : '';
+        $ext = match ($mime) {
+            'image/jpeg' => 'jpg',
+            'image/gif' => 'gif',
+            default => 'png',
+        };
+
+        if ($mime === 'image/webp' && function_exists('imagecreatefromstring') && function_exists('imagepng')) {
+            $image = @imagecreatefromstring($bytes);
+            if ($image !== false) {
+                ob_start();
+                imagepng($image);
+                $bytes = (string) ob_get_clean();
+                imagedestroy($image);
+                $ext = 'png';
+            }
+        }
+
         $tmp = tempnam(sys_get_temp_dir(), 'afsig');
         $named = $tmp.'.'.$ext;
         @unlink($tmp);
         file_put_contents($named, $bytes);
 
         return $named;
+    }
+
+    private function isPdf(string $bytes): bool
+    {
+        return $bytes !== '' && str_starts_with($bytes, '%PDF');
+    }
+
+    private function slugify(string $value): string
+    {
+        $value = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value) ?: $value;
+        $value = strtolower($value);
+        $value = (string) preg_replace('/[^a-z0-9]+/', '-', $value);
+
+        return trim($value, '-');
     }
 
     private function renderSignedPdfFromHtml(
@@ -387,7 +572,7 @@ HTML;
 
         if (trim($content) === '') {
             throw new \RuntimeException(
-                'Impossible de retrouver le contenu du document pour '.$recipient->name.'. Vérifiez le modèle source (texte, .txt ou .pdf).'
+                'Le PDF généré pour '.$recipient->name.' est introuvable, et le texte source n\'est plus disponible. Régénérez la campagne puis signez à nouveau.'
             );
         }
 

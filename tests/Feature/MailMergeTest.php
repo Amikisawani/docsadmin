@@ -554,5 +554,167 @@ class MailMergeTest extends TestCase
         $this->assertSame('signed', $signed->json('data.status'));
         Storage::disk('public')->assertExists($recipient->fresh()->output_path);
     }
+
+    public function test_director_can_sign_patrick_campaign_with_signature_image_and_no_source_text(): void
+    {
+        Storage::fake('public');
+        $this->artisan('db:seed', ['--class' => 'Database\\Seeders\\RoleAndPermissionSeeder'])->run();
+
+        $author = User::factory()->create();
+        $director = User::factory()->create(['name' => 'Directeur de Cabinet']);
+        $director->assignRole('directeur_cabinet');
+
+        $png = $this->tinyPng();
+        Storage::disk('public')->put('signatures/paraphe.png', $png);
+
+        $template = (string) file_get_contents(base_path('resources/samples/mailmerge/notification-arrete.txt'));
+        $document = Document::factory()->create([
+            'author_id' => $author->id,
+            'document_type' => 'notification',
+            'subject' => 'Notification d\'arrêté',
+            'status' => 'draft',
+            'flow_type' => 'mail_merge',
+            'is_mail_merge' => true,
+            'content' => $template,
+        ]);
+
+        $this->actingAs($author, 'sanctum');
+        $created = $this->postJson('/api/v1/mail-merge', [
+            'title' => 'Campagne Patrick',
+            'document_id' => (string) $document->id,
+            'format' => 'pdf',
+            'default_variables' => [
+                'reference' => 'SGPR/DAF/N/2026/001',
+                'numero_arrete' => '019/CAB.VPMIN/FP-MA-ISP/JPL/2026',
+                'date_arrete' => '06/02/2026',
+                'nom_signataire' => 'Jean Jacques LUBOYA TSHISHIMA',
+                'fonction_signataire' => 'Secrétaire Général auprès du Président de la République',
+            ],
+            'recipients' => [
+                [
+                    'name' => 'Jean MUKENDI KABONGO',
+                    'variables' => ['civilite' => 'Monsieur', 'nom_complet' => 'Jean MUKENDI KABONGO', 'matricule' => 'TEST-001'],
+                ],
+                [
+                    'name' => 'Grace ILUNGA MWAMBA',
+                    'variables' => ['civilite' => 'Madame', 'nom_complet' => 'Grace ILUNGA MWAMBA', 'matricule' => 'TEST-002'],
+                ],
+                [
+                    'name' => 'Patrick TSHIBANGU KALALA',
+                    'variables' => ['civilite' => 'Monsieur', 'nom_complet' => 'Patrick TSHIBANGU KALALA', 'matricule' => 'TEST-003'],
+                ],
+            ],
+        ]);
+        $created->assertStatus(201);
+        $batchId = $created->json('data.id');
+
+        $document->update(['content' => '', 'source_file_path' => null]);
+        $batch = \App\Domains\MailMerge\Models\MailMergeBatch::findOrFail($batchId);
+        foreach ($batch->recipients as $recipient) {
+            $vars = (array) $recipient->variables;
+            unset($vars['_merged_content']);
+            $recipient->update(['variables' => $vars]);
+            $this->assertNotNull($recipient->output_path);
+            Storage::disk('public')->assertExists($recipient->output_path);
+        }
+
+        $signature = Signature::query()->create([
+            'user_id' => $director->id,
+            'type' => 'image',
+            'label' => 'Paraphe cabinet',
+            'image_path' => 'signatures/paraphe.png',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($director, 'sanctum');
+        $signed = $this->postJson('/api/v1/mail-merge/'.$batchId.'/sign-campaign', [
+            'signature_id' => $signature->id,
+            'position' => ['x' => 50, 'y' => 80],
+        ]);
+
+        $signed->assertCreated();
+        $this->assertSame('signed', $signed->json('data.status'));
+        $this->assertSame(3, $batch->fresh()->recipients()->where('status', 'signed')->count());
+        $this->assertTrue(
+            $batch->fresh()->recipients()->where('name', 'Patrick TSHIBANGU KALALA')->where('status', 'signed')->exists()
+        );
+    }
+
+    public function test_director_can_sign_when_individual_pdf_is_missing_but_zip_contains_it(): void
+    {
+        Storage::fake('public');
+        $this->artisan('db:seed', ['--class' => 'Database\\Seeders\\RoleAndPermissionSeeder'])->run();
+
+        $author = User::factory()->create();
+        $director = User::factory()->create();
+        $director->assignRole('directeur_cabinet');
+
+        $document = Document::factory()->create([
+            'author_id' => $author->id,
+            'document_type' => 'notification',
+            'subject' => 'Notification d\'arrêté',
+            'status' => 'draft',
+            'flow_type' => 'mail_merge',
+            'is_mail_merge' => true,
+            'content' => 'Notification à {{nom_complet}}.',
+        ]);
+
+        $this->actingAs($author, 'sanctum');
+        $created = $this->postJson('/api/v1/mail-merge', [
+            'title' => 'Campagne ZIP seul',
+            'document_id' => (string) $document->id,
+            'format' => 'pdf',
+            'recipients' => [[
+                'name' => 'Patrick TSHIBANGU KALALA',
+                'variables' => ['nom_complet' => 'Patrick TSHIBANGU KALALA'],
+            ]],
+        ]);
+        $created->assertStatus(201);
+        $batchId = $created->json('data.id');
+
+        $document->update(['content' => '', 'source_file_path' => null]);
+        $batch = \App\Domains\MailMerge\Models\MailMergeBatch::findOrFail($batchId);
+        $recipient = $batch->recipients()->firstOrFail();
+        $vars = (array) $recipient->variables;
+        unset($vars['_merged_content']);
+        $recipient->update(['variables' => $vars]);
+
+        $this->assertNotNull($batch->zip_path);
+        Storage::disk('public')->delete($recipient->output_path);
+
+        $signature = Signature::query()->create([
+            'user_id' => $director->id,
+            'type' => 'digital',
+            'label' => 'Paraphe cabinet',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($director, 'sanctum');
+        $signed = $this->postJson('/api/v1/mail-merge/'.$batchId.'/sign-campaign', [
+            'signature_id' => $signature->id,
+            'position' => ['x' => 50, 'y' => 80],
+        ]);
+
+        $signed->assertCreated();
+        $this->assertSame('signed', $signed->json('data.status'));
+        $this->assertSame('signed', $recipient->fresh()->status);
+    }
+
+    private function tinyPng(): string
+    {
+        $image = imagecreatetruecolor(80, 32);
+        $white = imagecolorallocate($image, 255, 255, 255);
+        $ink = imagecolorallocate($image, 15, 23, 42);
+        imagefilledrectangle($image, 0, 0, 80, 32, $white);
+        imagestring($image, 5, 10, 8, 'Sign', $ink);
+        ob_start();
+        imagepng($image);
+        $bytes = (string) ob_get_clean();
+        imagedestroy($image);
+
+        return $bytes;
+    }
 }
 
