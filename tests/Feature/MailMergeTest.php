@@ -364,5 +364,67 @@ class MailMergeTest extends TestCase
         $res->assertOk();
         $this->assertCount(0, $res->json('data.data'));
     }
+
+    public function test_notification_arrete_sample_replaces_mail_merge_variables(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $this->actingAs($user, 'sanctum');
+
+        $content = file_get_contents(base_path('resources/samples/mailmerge/notification-arrete.txt'));
+        $this->assertNotFalse($content);
+        $this->assertStringContainsString('{{matricule}}', $content);
+        $this->assertStringContainsString('{{numero_arrete}}', $content);
+
+        $document = Document::factory()->create([
+            'author_id' => $user->id,
+            'document_type' => 'arrete',
+            'subject' => 'Notification d\'arrêté — modèle publipostage',
+            'status' => 'draft',
+            'flow_type' => 'mail_merge',
+            'is_mail_merge' => true,
+            'content' => $content,
+        ]);
+
+        $response = $this->postJson('/api/v1/mail-merge', [
+            'title' => 'Notification d\'arrêté — jeu de test',
+            'document_id' => (string) $document->id,
+            'format' => 'txt',
+            'default_variables' => [
+                'reference' => 'PR/SG/TEST/001/2026',
+                'numero_arrete' => '019/CAB.VPMIN/FP-MA-ISP/JPL/2026',
+                'date_arrete' => '06/02/2026',
+                'nom_signataire' => 'Jean Jacques LUBOYA TSHISHIMA',
+                'fonction_signataire' => 'Secrétaire Général auprès du Président de la République',
+            ],
+            'recipients' => [[
+                'name' => 'Jean MUKENDI KABONGO',
+                'variables' => [
+                    'civilite' => 'Monsieur',
+                    'nom_complet' => 'Jean MUKENDI KABONGO',
+                    'matricule' => 'TEST-001',
+                    'grade' => 'ATA 2',
+                    'fonction' => 'Agent de Carrière des Services Publics de l\'Etat',
+                    'adresse_administration' => 'C/o Palais de la Nation',
+                    'ville' => 'Kinshasa / Gombe',
+                ],
+            ]],
+        ]);
+
+        $response->assertStatus(201);
+        $batch = \App\Domains\MailMerge\Models\MailMergeBatch::findOrFail($response->json('data.id'));
+        $recipient = $batch->recipients()->firstOrFail();
+        $this->assertNotNull($recipient->output_path);
+        Storage::disk('public')->assertExists($recipient->output_path);
+
+        $generated = (string) Storage::disk('public')->get($recipient->output_path);
+        $this->assertStringContainsString('Jean MUKENDI KABONGO', $generated);
+        $this->assertStringContainsString('TEST-001', $generated);
+        $this->assertStringContainsString('019/CAB.VPMIN/FP-MA-ISP/JPL/2026', $generated);
+        $this->assertStringNotContainsString('{{matricule}}', $generated);
+        $this->assertStringNotContainsString('{{nom_complet}}', $generated);
+        $this->assertStringNotContainsString('{{numero_arrete}}', $generated);
+    }
 }
 

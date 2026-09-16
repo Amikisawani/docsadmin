@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Notification d'arrêté — modèle publipostage</title>
+    <style>
+        @page { margin: 14mm 16mm 14mm 16mm; }
+        * { box-sizing: border-box; }
+        body {
+            font-family: DejaVu Serif, Times New Roman, serif;
+            font-size: 10.2pt;
+            color: #1a1a1a;
+            line-height: 1.28;
+        }
+        .header { text-align: center; }
+        .header .country {
+            font-size: 12.5pt;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+        .header .entity {
+            font-size: 11.5pt;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            margin-top: 2px;
+            text-transform: uppercase;
+        }
+        .rule {
+            border: none;
+            border-top: 1.4pt solid #1e3a5f;
+            width: 62%;
+            margin: 6px auto 10px;
+        }
+        .meta { width: 100%; }
+        .meta td { vertical-align: top; }
+        .sg-block { width: 46%; font-size: 8.5pt; line-height: 1.25; }
+        .sg-block .title {
+            font-size: 7.6pt;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .seal {
+            width: 38px;
+            height: 38px;
+            border: 1.5pt solid #1d4ed8;
+            border-radius: 19px;
+            text-align: center;
+            color: #1d4ed8;
+            font-size: 6.8pt;
+            font-weight: 700;
+            line-height: 1.05;
+            padding-top: 7px;
+            margin: 4px 0 4px;
+        }
+        .sg-name {
+            font-family: DejaVu Sans, sans-serif;
+            font-style: italic;
+            color: #2563eb;
+            font-size: 11pt;
+            margin-top: 2px;
+        }
+        .date-cell { width: 54%; text-align: right; padding-top: 6px; }
+        .ref { margin-top: 10px; font-size: 10.5pt; }
+        .ref strong { font-family: DejaVu Sans, sans-serif; }
+        .var {
+            font-family: DejaVu Sans, sans-serif;
+            font-weight: 700;
+            color: #1d4ed8;
+        }
+        .addressee { margin-top: 8px; }
+        .addressee .label {
+            font-style: italic;
+            text-decoration: underline;
+            margin-bottom: 6px;
+        }
+        .addressee .cc { font-size: 10pt; margin: 0 0 3px 18px; }
+        .to-box {
+            margin: 8px 0 0 18px;
+            padding-left: 8px;
+            border-left: 1.5pt solid #1e3a5f;
+        }
+        .concern {
+            margin-top: 12px;
+        }
+        .concern .title { font-weight: 700; }
+        .file-table { margin: 4px 0 0 28px; font-size: 10.5pt; }
+        .file-table td { padding: 1px 10px 1px 0; vertical-align: top; }
+        .salut { margin-top: 12px; }
+        .body { text-align: justify; margin-top: 6px; }
+        .indent { text-indent: 28px; }
+        .sign {
+            width: 100%;
+            margin-top: 16px;
+        }
+        .sign td { width: 50%; vertical-align: top; }
+        .sign-name {
+            text-align: center;
+            font-weight: 700;
+            font-size: 11pt;
+        }
+        .sign-fn {
+            text-align: center;
+            font-size: 9pt;
+            font-style: italic;
+            color: #334155;
+        }
+        .footer {
+            text-align: center;
+            font-size: 8pt;
+            color: #334155;
+            border-top: 0.6pt solid #94a3b8;
+            padding-top: 6px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="country">République Démocratique du Congo</div>
+        <div class="entity">Présidence de la République</div>
+        <hr class="rule">
+    </div>
+
+    <table class="meta">
+        <tr>
+            <td class="sg-block">
+                <div class="title">Secrétariat Général auprès du<br>Président de la République</div>
+                <div class="seal">RDC<br>PR</div>
+                <div class="sg-name">Le Secrétaire Général</div>
+            </td>
+            <td class="date-cell">
+                Kinshasa, le <span class="var">{{date_notification}}</span>
+            </td>
+        </tr>
+    </table>
+
+    <div class="ref">
+        N/Réf. : <span class="var">{{reference}}</span>
+    </div>
+
+    <div class="addressee">
+        <div class="label">Transmis copie pour information à :</div>
+        <p class="cc">- Son Excellence Monsieur le Directeur de Cabinet<br>&nbsp;&nbsp;du Président de la République</p>
+        <p class="cc">- Monsieur le Directeur Administratif et Financier,</p>
+        <p class="cc">a.i</p>
+        <p class="cc">(Tous) au Palais de la Nation</p>
+        <p class="cc">à Kinshasa / Gombe</p>
+        <div class="to-box">
+            <strong>À <span class="var">{{civilite}} {{nom_complet}}</span></strong><br>
+            <span class="var">{{adresse_administration}}</span><br>
+            à <span class="var">{{ville}}</span>
+        </div>
+    </div>
+
+    <div class="concern">
+        <div class="title">Concerne : Notification</div>
+        <table class="file-table">
+            <tr><td>Dossier</td><td>:</td><td><span class="var">{{nom_complet}}</span></td></tr>
+            <tr><td>Matricule</td><td>:</td><td><span class="var">{{matricule}}</span></td></tr>
+            <tr><td>Grade</td><td>:</td><td><span class="var">{{grade}}</span></td></tr>
+        </table>
+    </div>
+
+    <p class="salut"><strong><span class="var">{{civilite}}</span>,</strong></p>
+
+    <p class="body indent">
+        J'ai l'honneur de vous notifier l'Arrêté n° <span class="var">{{numero_arrete}}</span>
+        du <span class="var">{{date_arrete}}</span> de Son Excellence Monsieur le
+        Vice-Premier Ministre, Ministre de la Fonction Publique, Modernisation de l'Administration et
+        Innovation du Service Public, qui régularise votre situation administrative en tant
+        qu'<span class="var">{{fonction}}</span>.
+    </p>
+
+    <p class="body indent">
+        À cette occasion, je vous présente mes vives et sincères félicitations et vous souhaite une
+        fructueuse carrière au sein de l'Administration Publique.
+    </p>
+
+    <p class="body indent">
+        Veuillez agréer, <strong><span class="var">{{civilite}}</span></strong>, mes salutations distinguées.
+    </p>
+
+    <table class="sign">
+        <tr>
+            <td></td>
+            <td>
+                <div class="sign-name"><span class="var">{{nom_signataire}}</span></div>
+                <div class="sign-fn"><span class="var">{{fonction_signataire}}</span></div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="footer">
+        Avenue Roi Baudouin, Palais de la Nation, Kinshasa/Gombe<br>
+        Tél : (+243) 81 94 021 22 — 82 75 19 586 — 89 83 50 869<br>
+        E-mail : sgppr@presidence.cd
+    </div>
+</body>
+</html>

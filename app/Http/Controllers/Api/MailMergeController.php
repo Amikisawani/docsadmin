@@ -180,7 +180,7 @@ $validated = $request->validate([
         $batch = $this->runMailMergeUseCase->execute($input, $request->user());
 
         $status = match ($batch->status) {
-            'completed', 'partial', 'awaiting_workflow' => 201,
+            'completed', 'partial', 'awaiting_workflow', 'pending_signature', 'signed' => 201,
             default => 422,
         };
 
@@ -191,6 +191,8 @@ $validated = $request->validate([
             'completed' => 'Publipostage généré : ' . $batch->generated_count . ' document(s) sur ' . $batch->total_recipients . '.',
             'partial' => 'Publipostage partiellement généré : ' . $batch->generated_count . ' document(s) sur ' . $batch->total_recipients . '.',
             'awaiting_workflow' => 'Campagne de publipostage créée. Le workflow de validation du document source a été démarré.',
+            'pending_signature' => 'Publipostage généré : ' . $batch->generated_count . ' document(s) sur ' . $batch->total_recipients . '. En attente de signature.',
+            'signed' => 'Publipostage généré et signé : ' . $batch->generated_count . ' document(s).',
             default => $firstError ?: 'Échec du publipostage. Aucun document généré.',
         };
 

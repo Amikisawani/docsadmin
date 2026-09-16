@@ -1,0 +1,35 @@
+RÉPUBLIQUE DÉMOCRATIQUE DU CONGO
+PRÉSIDENCE DE LA RÉPUBLIQUE
+
+SECRÉTARIAT GÉNÉRAL AUPRÈS DU PRÉSIDENT DE LA RÉPUBLIQUE
+Le Secrétaire Général
+
+Kinshasa, le {{date_notification}}
+
+N/Réf. : {{reference}}
+
+Transmis copie pour information à :
+- Son Excellence Monsieur le Directeur de Cabinet du Président de la République
+- Monsieur le Directeur Administratif et Financier, a.i
+(Tous) au Palais de la Nation
+à Kinshasa / Gombe
+
+À {{civilite}} {{nom_complet}}
+{{adresse_administration}}
+à {{ville}}
+
+Concerne : Notification
+Dossier    : {{nom_complet}}
+Matricule  : {{matricule}}
+Grade      : {{grade}}
+
+{{civilite}},
+
+J'ai l'honneur de vous notifier l'Arrêté n° {{numero_arrete}} du {{date_arrete}} de Son Excellence Monsieur le Vice-Premier Ministre, Ministre de la Fonction Publique, Modernisation de l'Administration et Innovation du Service Public, qui régularise votre situation administrative en tant qu'{{fonction}}.
+
+À cette occasion, je vous présente mes vives et sincères félicitations et vous souhaite une fructueuse carrière au sein de l'Administration Publique.
+
+Veuillez agréer, {{civilite}}, mes salutations distinguées.
+
+{{nom_signataire}}
+{{fonction_signataire}}
