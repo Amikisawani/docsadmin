@@ -24,4 +24,22 @@ class StorageProxyTest extends TestCase
         $this->get('/storage/missing.txt')->assertNotFound();
         $this->get('/storage/foo/../../secrets.txt')->assertNotFound();
     }
+
+    public function test_pdf_preview_allows_same_origin_iframe(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('docs/notice.pdf', '%PDF-1.4 fake');
+
+        $response = $this->get('/storage/docs/notice.pdf');
+
+        $response->assertOk();
+        $response->assertHeader('X-Frame-Options', 'SAMEORIGIN');
+        $this->assertStringStartsWith('inline', (string) $response->headers->get('Content-Disposition'));
+    }
+
+    public function test_html_shell_still_denies_clickjacking(): void
+    {
+        $this->get('/login')->assertHeader('X-Frame-Options', 'DENY');
+        $this->get('/up')->assertHeader('X-Frame-Options', 'DENY');
+    }
 }

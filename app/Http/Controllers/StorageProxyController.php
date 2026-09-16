@@ -28,8 +28,15 @@ class StorageProxyController extends Controller
 
         $download = $request->boolean('download');
 
-        return $download
-            ? $disk->download($path)
-            : $disk->response($path);
+        if ($download) {
+            return $disk->download($path);
+        }
+
+        // Disposition inline : Firefox/Chrome peuvent afficher le PDF dans l'iframe d'aperçu.
+        $response = $disk->response($path);
+        $filename = basename($path);
+        $response->headers->set('Content-Disposition', 'inline; filename="'.$filename.'"');
+
+        return $response;
     }
 }
