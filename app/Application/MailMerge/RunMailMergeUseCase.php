@@ -206,11 +206,12 @@ final class RunMailMergeUseCase
             }
 
             try {
-                $outputPath = $this->generateOne($content, $batch, $destinataire, $variables, $format);
+                [$outputPath, $merged] = $this->generateOne($content, $batch, $destinataire, $variables, $format);
                 $recipient->update([
                     'output_path' => $outputPath,
                     'status' => 'generated',
                     'generated_at' => now(),
+                    'variables' => array_merge($variables, ['_merged_content' => $merged]),
                 ]);
                 $generated++;
             } catch (Throwable $e) {
@@ -408,14 +409,17 @@ $batch->update([
         ];
     }
 
-    /** Génère un document pour un destinataire donné. */
-    private function generateOne(string $content, MailMergeBatch $batch, string $name, array $variables, string $format): string
+    /** @return array{0: string, 1: string} [chemin, contenu fusionné] */
+    private function generateOne(string $content, MailMergeBatch $batch, string $name, array $variables, string $format): array
     {
         if (trim($content) === '') {
             throw new \RuntimeException('Le contenu source est vide.');
         }
 
         foreach ($variables as $key => $value) {
+            if (str_starts_with((string) $key, '_')) {
+                continue;
+            }
             $content = str_replace('{{' . $key . '}}', (string) ($value ?? ''), $content);
         }
 
@@ -443,7 +447,7 @@ $batch->update([
             $disk->put($path, $content);
         }
 
-        return $path;
+        return [$path, $content];
     }
 
     /** Extrait le texte d'un fichier source selon son extension. */

@@ -496,5 +496,63 @@ class MailMergeTest extends TestCase
         $this->assertSame('signed', $recipient->status);
         Storage::disk('public')->assertExists($recipient->output_path);
     }
+
+    public function test_director_can_sign_existing_generated_pdfs_without_source_text(): void
+    {
+        Storage::fake('public');
+        $this->artisan('db:seed', ['--class' => 'Database\\Seeders\\RoleAndPermissionSeeder'])->run();
+
+        $author = User::factory()->create();
+        $director = User::factory()->create();
+        $director->assignRole('directeur_cabinet');
+
+        $document = Document::factory()->create([
+            'author_id' => $author->id,
+            'document_type' => 'notification',
+            'subject' => 'Notification d\'arrêté',
+            'status' => 'draft',
+            'flow_type' => 'mail_merge',
+            'is_mail_merge' => true,
+            'content' => 'Notification à {{nom_complet}}.',
+        ]);
+
+        $this->actingAs($author, 'sanctum');
+        $created = $this->postJson('/api/v1/mail-merge', [
+            'title' => 'Campagne PDF existants',
+            'document_id' => (string) $document->id,
+            'format' => 'pdf',
+            'recipients' => [[
+                'name' => 'Patrick TSHIBANGU KALALA',
+                'variables' => ['nom_complet' => 'Patrick TSHIBANGU KALALA'],
+            ]],
+        ]);
+        $created->assertStatus(201);
+        $batchId = $created->json('data.id');
+
+        $document->update(['content' => '', 'source_file_path' => null]);
+        $batch = \App\Domains\MailMerge\Models\MailMergeBatch::findOrFail($batchId);
+        $recipient = $batch->recipients()->firstOrFail();
+        $vars = (array) $recipient->variables;
+        unset($vars['_merged_content']);
+        $recipient->update(['variables' => $vars]);
+
+        $signature = Signature::query()->create([
+            'user_id' => $director->id,
+            'type' => 'digital',
+            'label' => 'Paraphe cabinet',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($director, 'sanctum');
+        $signed = $this->postJson('/api/v1/mail-merge/'.$batchId.'/sign-campaign', [
+            'signature_id' => $signature->id,
+            'position' => ['x' => 50, 'y' => 80],
+        ]);
+
+        $signed->assertCreated();
+        $this->assertSame('signed', $signed->json('data.status'));
+        Storage::disk('public')->assertExists($recipient->fresh()->output_path);
+    }
 }
 

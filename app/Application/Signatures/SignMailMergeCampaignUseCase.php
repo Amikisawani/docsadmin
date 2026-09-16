@@ -9,7 +9,9 @@ use App\Domains\Signatures\Models\Signature;
 use App\Domains\Users\Models\User;
 use App\Support\StoredFile;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use setasign\Fpdi\Tcpdf\Fpdi;
 use Throwable;
 use ZipArchive;
 
@@ -158,8 +160,9 @@ final class SignMailMergeCampaignUseCase
     }
 
     /**
-     * Signe un PDF de destinataire en le régénérant via DomPDF avec la signature
-     * posée en overlay (image + nom + fonction), sans aucune mention parasite.
+     * Signe le document du destinataire. Si un PDF a déjà été généré, on y
+     * tamponne la signature (sans ré-extraire le texte). Sinon on reconstruit
+     * un PDF à partir du contenu fusionné.
      */
     private function signRecipientPdf(
         MailMergeBatch $batch,
@@ -168,9 +171,105 @@ final class SignMailMergeCampaignUseCase
         User $actor,
         array $position
     ): string {
-        // Récupérer le contenu personnalisé du destinataire (après fusion des variables)
+        $disk = Storage::disk('public');
+        $output = (string) ($recipient->output_path ?? '');
+        $ext = strtolower((string) pathinfo($output, PATHINFO_EXTENSION));
+
+        if ($output !== '' && $ext === 'pdf' && $disk->exists($output)) {
+            try {
+                return $this->stampExistingPdf($output, $signature, $actor, $position);
+            } catch (Throwable $e) {
+                Log::warning('Tampon PDF campagne impossible, repli texte : '.$e->getMessage());
+            }
+        }
+
         $content = $this->resolveRecipientContent($batch, $recipient);
 
+        return $this->renderSignedPdfFromHtml($batch, $recipient, $signature, $actor, $position, $content);
+    }
+
+    private function stampExistingPdf(string $storedPath, Signature $signature, User $actor, array $position): string
+    {
+        $sigTmp = $this->writeSignatureTempFile($signature);
+
+        try {
+            return StoredFile::withLocal($storedPath, function (string $local) use ($sigTmp, $actor, $position) {
+                if (! is_file($local) || filesize($local) < 8) {
+                    throw new \RuntimeException('Fichier PDF source illisible.');
+                }
+
+                $pdf = new Fpdi();
+                $pdf->setPrintHeader(false);
+                $pdf->setPrintFooter(false);
+                $pdf->SetAutoPageBreak(false);
+                $pdf->SetMargins(0, 0, 0);
+
+                $pageCount = $pdf->setSourceFile($local);
+
+                for ($page = 1; $page <= $pageCount; $page++) {
+                    $tpl = $pdf->importPage($page);
+                    $size = $pdf->getTemplateSize($tpl);
+                    $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                    $pdf->useTemplate($tpl, 0, 0, $size['width'], $size['height'], true);
+
+                    $imgW = min(48.0, $size['width'] * 0.28);
+                    $x = (($position['x'] ?? 68) / 100) * $size['width'] - ($imgW / 2);
+                    $y = (($position['y'] ?? 82) / 100) * $size['height'] - 10;
+                    $x = max(6, min($x, $size['width'] - $imgW - 6));
+                    $y = max(6, min($y, $size['height'] - 22));
+
+                    if ($sigTmp) {
+                        $pdf->Image($sigTmp, $x, $y, $imgW);
+                    } else {
+                        $pdf->SetFont('helvetica', 'I', 12);
+                        $pdf->SetTextColor(15, 23, 42);
+                        $pdf->SetXY($x, $y);
+                        $pdf->Cell($imgW, 8, $actor->name, 0, 0, 'C');
+                    }
+                }
+
+                return $pdf->Output('signed.pdf', 'S');
+            });
+        } finally {
+            if ($sigTmp) {
+                @unlink($sigTmp);
+            }
+        }
+    }
+
+    private function writeSignatureTempFile(Signature $signature): ?string
+    {
+        if (! $signature->image_path) {
+            return null;
+        }
+
+        $disk = Storage::disk('public');
+        if (! $disk->exists($signature->image_path)) {
+            return null;
+        }
+
+        $bytes = (string) $disk->get($signature->image_path);
+        if ($bytes === '') {
+            return null;
+        }
+
+        $ext = strtolower((string) pathinfo($signature->image_path, PATHINFO_EXTENSION)) ?: 'png';
+        $tmp = tempnam(sys_get_temp_dir(), 'afsig');
+        $named = $tmp.'.'.$ext;
+        @unlink($tmp);
+        file_put_contents($named, $bytes);
+
+        return $named;
+    }
+
+    private function renderSignedPdfFromHtml(
+        MailMergeBatch $batch,
+        MailMergeRecipient $recipient,
+        Signature $signature,
+        User $actor,
+        array $position,
+        string $content
+    ): string {
         $posX = $position['x'] ?? 68;
         $posY = $position['y'] ?? 82;
 
@@ -244,8 +343,11 @@ HTML;
     private function resolveRecipientContent(MailMergeBatch $batch, MailMergeRecipient $recipient): string
     {
         $disk = Storage::disk('public');
-
-        // 1) Document déjà fusionné (txt/html) : on le reprend tel quel.
+        $stored = (array) ($recipient->variables ?? []);
+        $merged = trim((string) ($stored['_merged_content'] ?? ''));
+        if ($merged !== '') {
+            return nl2br($this->e($merged));
+        }
         if ($recipient->output_path && $disk->exists($recipient->output_path)) {
             $ext = strtolower((string) pathinfo($recipient->output_path, PATHINFO_EXTENSION));
             if (in_array($ext, ['txt', 'text'], true)) {
