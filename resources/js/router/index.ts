@@ -139,6 +139,16 @@ const router = createRouter({
     routes,
 });
 
+function isDirectorAllowedPath(path: string): boolean {
+    const allowed = ['/director', '/signatures', '/archives', '/tasks'];
+    if (allowed.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) {
+        return true;
+    }
+
+    // Fiche document ouverte depuis Archives / Mes tâches (pas la liste ni la création).
+    return /^\/documents\/[^/]+$/.test(path);
+}
+
 router.beforeEach((to, from, next) => {
     const authStore = useAuthStore();
 
@@ -150,11 +160,11 @@ router.beforeEach((to, from, next) => {
         return next(authStore.hasRole('directeur_cabinet') ? '/director' : '/');
     }
 
-    // Le Directeur de Cabinet n'utilise que sa boîte de validation
+    // Le Directeur de Cabinet reste sur son espace, plus signatures / archives / tâches.
     if (
         authStore.isAuthenticated &&
         authStore.hasRole('directeur_cabinet') &&
-        !to.path.startsWith('/director') &&
+        !isDirectorAllowedPath(to.path) &&
         to.name !== 'Login' &&
         to.name !== 'AccessDenied'
     ) {
