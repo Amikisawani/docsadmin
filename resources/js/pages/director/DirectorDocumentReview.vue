@@ -1,4 +1,6 @@
 <template>
+  <AppToast v-model="flash" />
+
   <!-- Mode campagne : signature d'une campagne de publipostage -->
   <div v-if="isCampaign && campaign" class="dir-review">
     <div class="dir-review-header">
@@ -258,6 +260,7 @@ import { useRoute, useRouter } from "vue-router";
 import apiClient from "../../utils/axios";
 import type { Document, MailMergeBatch, Signature } from "../../types";
 import SignatureTool from "../../components/SignatureTool.vue";
+import AppToast, { type AppToastPayload } from "../../components/AppToast.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -273,6 +276,11 @@ const signatures = ref<Signature[]>([]);
 const selectedSignatureId = ref("");
 const campaignPreviewUrl = ref<string | null>(null);
 const previewTab = ref<"before" | "after">("before");
+const flash = ref<AppToastPayload | null>(null);
+
+function showFlash(type: AppToastPayload["type"], title: string, message: string) {
+  flash.value = { type, title, message };
+}
 
 const isPdfPreview = computed(() => {
   if (!previewFileUrl.value) return false;
@@ -335,7 +343,7 @@ async function loadSignatures() {
 
 async function signCampaign() {
   if (!selectedSignatureId.value) {
-    alert("Veuillez choisir une signature.");
+    showFlash("warning", "Signature manquante", "Choisissez une signature avant de valider la campagne.");
     return;
   }
   signing.value = true;
@@ -344,10 +352,15 @@ async function signCampaign() {
       signature_id: selectedSignatureId.value,
       position: { x: 50, y: 50 },
     });
-    alert("Campagne signée avec succès !");
+    showFlash("success", "Campagne signée", "La signature a été appliquée à tous les documents de la campagne.");
     await loadCurrent();
   } catch (e: any) {
-    alert(e?.response?.data?.message || "Erreur lors de la signature de la campagne");
+    const apiMessage = e?.response?.data?.message;
+    showFlash(
+      "error",
+      "Signature impossible",
+      typeof apiMessage === "string" ? apiMessage : "La campagne n'a pas pu être signée. Réessayez ou vérifiez le modèle source."
+    );
   } finally {
     signing.value = false;
   }
@@ -372,9 +385,15 @@ async function confirmReject() {
     });
     rejecting.value = false;
     rejectReason.value = "";
+    showFlash("success", "Document rejeté", "Le motif a été enregistré et l'expéditeur sera notifié.");
     await loadCurrent();
   } catch (e: any) {
-    alert(e?.response?.data?.message || "Erreur lors du rejet");
+    const apiMessage = e?.response?.data?.message;
+    showFlash(
+      "error",
+      "Rejet impossible",
+      typeof apiMessage === "string" ? apiMessage : "Le rejet n'a pas pu être enregistré."
+    );
   } finally {
     rejectingSubmitting.value = false;
   }

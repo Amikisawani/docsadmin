@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Application\Workflows\ApproveWorkflowUseCase;
 use App\Domains\Documents\Models\Document;
+use App\Domains\Signatures\Models\Signature;
 use App\Domains\Users\Models\User;
 use App\Domains\Workflows\Models\Workflow;
 use App\Domains\Workflows\Models\WorkflowApproval;
@@ -428,6 +429,72 @@ class MailMergeTest extends TestCase
         $this->assertStringNotContainsString('{{matricule}}', $generated);
         $this->assertStringNotContainsString('{{nom_complet}}', $generated);
         $this->assertStringNotContainsString('{{numero_arrete}}', $generated);
+    }
+
+    public function test_director_can_sign_campaign_when_source_is_a_txt_file(): void
+    {
+        Storage::fake('public');
+        $this->artisan('db:seed', ['--class' => 'Database\\Seeders\\RoleAndPermissionSeeder'])->run();
+
+        $author = User::factory()->create();
+        $director = User::factory()->create();
+        $director->assignRole('directeur_cabinet');
+
+        Storage::disk('public')->put(
+            'sources/notification.txt',
+            'Notification à {{nom_complet}}, matricule {{matricule}}.'
+        );
+
+        $document = Document::factory()->create([
+            'author_id' => $author->id,
+            'document_type' => 'notification',
+            'subject' => 'Notification d\'arrêté',
+            'status' => 'draft',
+            'flow_type' => 'mail_merge',
+            'is_mail_merge' => true,
+            'content' => '',
+            'source_file_path' => 'sources/notification.txt',
+        ]);
+
+        $this->actingAs($author, 'sanctum');
+        $created = $this->postJson('/api/v1/mail-merge', [
+            'title' => 'Campagne signature TXT',
+            'document_id' => (string) $document->id,
+            'format' => 'pdf',
+            'recipients' => [[
+                'name' => 'Jean Test',
+                'variables' => [
+                    'nom_complet' => 'Jean Test',
+                    'matricule' => 'T-001',
+                ],
+            ]],
+        ]);
+
+        $created->assertStatus(201);
+        $this->assertSame('pending_signature', $created->json('data.status'));
+        $batchId = $created->json('data.id');
+
+        $signature = Signature::query()->create([
+            'user_id' => $director->id,
+            'type' => 'digital',
+            'label' => 'Paraphe cabinet',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($director, 'sanctum');
+        $signed = $this->postJson('/api/v1/mail-merge/'.$batchId.'/sign-campaign', [
+            'signature_id' => $signature->id,
+            'position' => ['x' => 50, 'y' => 80],
+        ]);
+
+        $signed->assertCreated();
+        $this->assertSame('signed', $signed->json('data.status'));
+        $this->assertNotNull($signed->json('data.signed_at'));
+
+        $recipient = \App\Domains\MailMerge\Models\MailMergeBatch::findOrFail($batchId)->recipients()->firstOrFail();
+        $this->assertSame('signed', $recipient->status);
+        Storage::disk('public')->assertExists($recipient->output_path);
     }
 }
 

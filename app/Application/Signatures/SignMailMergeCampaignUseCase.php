@@ -62,6 +62,7 @@ final class SignMailMergeCampaignUseCase
 
         $position = $input['position'] ?? ['x' => 68, 'y' => 82];
 
+        $actor->loadMissing('roles');
         $signedZipPath = $this->signAllRecipients($batch, $signature, $actor, $position);
 
         $batch->update([
@@ -113,32 +114,28 @@ final class SignMailMergeCampaignUseCase
     private function signAllRecipients(MailMergeBatch $batch, Signature $signature, User $actor, array $position): ?string
     {
         $disk = Storage::disk('public');
-        $recipients = $batch->recipients()->where('status', 'generated')->get();
+        $recipients = $batch->recipients()->get();
 
         if ($recipients->isEmpty()) {
-            abort(422, 'Aucun document généré à signer dans cette campagne.');
+            abort(422, 'Aucun destinataire à signer dans cette campagne.');
         }
 
         $signedDir = 'mailmerge/' . $batch->id . '/signed';
         $disk->makeDirectory($signedDir);
 
         $signedCount = 0;
+        $lastError = null;
 
         foreach ($recipients as $recipient) {
             try {
-                $outputPath = $recipient->output_path;
-                if (!$outputPath || !$disk->exists($outputPath)) {
-                    continue;
-                }
-
-// Reconstruire le PDF signé : contenu personnalisé + signature du Directeur
                 $signedPdf = $this->signRecipientPdf($batch, $recipient, $signature, $actor, $position);
 
-                $signedPath = $signedDir . '/' . basename($outputPath);
+                $basename = $recipient->output_path
+                    ? pathinfo($recipient->output_path, PATHINFO_FILENAME)
+                    : preg_replace('/[^a-z0-9]+/i', '-', (string) ($recipient->destinataire ?: $recipient->name));
+                $signedPath = $signedDir . '/' . trim((string) $basename, '-') . '.pdf';
                 $disk->put($signedPath, $signedPdf);
 
-                // On mémorise le chemin signé dans output_path (le fichier signé remplace
-                // la version non signée pour le recipient), et on note le statut signé.
                 $recipient->update([
                     'output_path' => $signedPath,
                     'status' => 'signed',
@@ -146,6 +143,7 @@ final class SignMailMergeCampaignUseCase
 
                 $signedCount++;
             } catch (Throwable $e) {
+                $lastError = $e->getMessage();
                 \Illuminate\Support\Facades\Log::warning(
                     'Signature campagne - échec destinataire ' . $recipient->name . ' : ' . $e->getMessage()
                 );
@@ -153,7 +151,7 @@ final class SignMailMergeCampaignUseCase
         }
 
         if ($signedCount === 0) {
-            abort(422, 'Impossible de signer les documents de cette campagne.');
+            abort(422, $lastError ?: 'Impossible de signer les documents de cette campagne.');
         }
 
         return $this->buildSignedZip($batch, $signedDir);
@@ -245,15 +243,50 @@ HTML;
      */
     private function resolveRecipientContent(MailMergeBatch $batch, MailMergeRecipient $recipient): string
     {
-        $document = $batch->document;
-        $content = (string) ($document?->content ?? '');
+        $disk = Storage::disk('public');
 
-        if (trim($content) === '' && $document?->source_file_path && Storage::disk('public')->exists($document->source_file_path)) {
-            $content = StoredFile::withLocal($document->source_file_path, fn (string $local) => $this->extractDocxText($local));
+        // 1) Document déjà fusionné (txt/html) : on le reprend tel quel.
+        if ($recipient->output_path && $disk->exists($recipient->output_path)) {
+            $ext = strtolower((string) pathinfo($recipient->output_path, PATHINFO_EXTENSION));
+            if (in_array($ext, ['txt', 'text'], true)) {
+                $raw = (string) $disk->get($recipient->output_path);
+                if (trim($raw) !== '') {
+                    return nl2br($this->e($raw));
+                }
+            }
+            if (in_array($ext, ['html', 'htm'], true)) {
+                $raw = (string) $disk->get($recipient->output_path);
+                if (trim($raw) !== '') {
+                    return $raw;
+                }
+            }
+            if ($ext === 'pdf') {
+                $extracted = StoredFile::withLocal(
+                    $recipient->output_path,
+                    fn (string $local) => $this->extractPdfText($local)
+                );
+                if (trim($extracted) !== '') {
+                    return nl2br($this->e($extracted));
+                }
+            }
+            if (in_array($ext, ['docx', 'doc'], true)) {
+                $extracted = StoredFile::withLocal(
+                    $recipient->output_path,
+                    fn (string $local) => $this->extractDocxText($local)
+                );
+                if (trim($extracted) !== '') {
+                    return nl2br($this->e($extracted));
+                }
+            }
         }
 
+        // 2) Reconstruire depuis le modèle (contenu, .txt/.pdf/.docx, fichier de campagne).
+        $content = $this->resolveSourceTemplate($batch);
+
         if (trim($content) === '') {
-            throw new \RuntimeException('Contenu source introuvable pour ' . $recipient->name);
+            throw new \RuntimeException(
+                'Impossible de retrouver le contenu du document pour '.$recipient->name.'. Vérifiez le modèle source (texte, .txt ou .pdf).'
+            );
         }
 
         $vars = array_merge(
@@ -266,6 +299,53 @@ HTML;
         }
 
         return nl2br($this->e($content));
+    }
+
+    private function resolveSourceTemplate(MailMergeBatch $batch): string
+    {
+        $document = $batch->document;
+        $content = (string) ($document?->content ?? '');
+
+        if (trim($content) === '' && $document?->source_file_path && Storage::disk('public')->exists($document->source_file_path)) {
+            $content = StoredFile::withLocal(
+                $document->source_file_path,
+                fn (string $local) => $this->extractSourceFileText($local, $document->source_file_path)
+            );
+        }
+
+        if (trim($content) === '' && $batch->source_file_path && Storage::disk('public')->exists($batch->source_file_path)) {
+            $content = StoredFile::withLocal(
+                $batch->source_file_path,
+                fn (string $local) => $this->extractSourceFileText($local, $batch->source_file_path)
+            );
+        }
+
+        return $content;
+    }
+
+    private function extractSourceFileText(string $localPath, string $storedPath): string
+    {
+        $ext = strtolower((string) pathinfo($storedPath, PATHINFO_EXTENSION));
+
+        return match ($ext) {
+            'docx', 'doc' => $this->extractDocxText($localPath),
+            'pdf' => $this->extractPdfText($localPath),
+            'html', 'htm' => trim(html_entity_decode(strip_tags((string) file_get_contents($localPath)), ENT_QUOTES | ENT_HTML5, 'UTF-8')),
+            'txt', 'text' => (string) file_get_contents($localPath),
+            default => $this->extractDocxText($localPath) ?: $this->extractPdfText($localPath) ?: (string) file_get_contents($localPath),
+        };
+    }
+
+    private function extractPdfText(string $fullPath): string
+    {
+        $content = file_get_contents($fullPath);
+        if ($content === false) {
+            return '';
+        }
+
+        preg_match_all('/\((.*?)\)\s*Tj/s', $content, $matches);
+
+        return implode(' ', $matches[1] ?? []);
     }
 
     private function loadSignatureImage(Signature $signature): ?string
