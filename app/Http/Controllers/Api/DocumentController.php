@@ -10,6 +10,7 @@ use App\Domains\Documents\Models\Document;
 use App\Domains\Signatures\Models\Signature;
 use App\Application\Signatures\SignDocumentUseCase;
 use App\Http\Controllers\Controller;
+use App\Support\Access;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -51,8 +52,11 @@ public function index(Request $request): JsonResponse
             ->when($request->author_id, fn($q, $id) => $q->where('author_id', $id))
             ->when($request->date_from, fn($q, $date) => $q->whereDate('document_date', '>=', $date))
             ->when($request->date_to, fn($q, $date) => $q->whereDate('document_date', '<=', $date))
-            ->orderBy($request->sort ?? 'created_at', $request->order ?? 'desc')
-            ->paginate($request->per_page ?? 15);
+            ->orderBy(
+                Access::sanitizeSort($request->sort, ['created_at', 'updated_at', 'document_date', 'subject', 'status', 'document_number'], 'created_at'),
+                Access::sanitizeOrder($request->order)
+            )
+            ->paginate(Access::perPage($request->per_page));
 
         return response()->json([
             'data' => $documents,
@@ -64,13 +68,15 @@ public function index(Request $request): JsonResponse
      * étapes, approbations (qui a approuvé, qui doit approuver),
      * étape courante, statut de l'instance.
      */
-    public function workflowProgress(string $id): JsonResponse
+    public function workflowProgress(Request $request, string $id): JsonResponse
     {
         $document = Document::with([
             'workflow',
             'currentWorkflowInstance.approvals.approver',
             'currentWorkflowInstance.workflow',
         ])->findOrFail($id);
+
+        Access::ensureCanViewDocument($request->user(), $document);
 
         if (!$document->current_workflow_instance_id) {
             return response()->json([
@@ -160,22 +166,7 @@ public function show(Request $request, string $id): JsonResponse
         $document = Document::with(['author', 'department', 'attachments', 'signatures.signer', 'histories.user', 'workflow', 'currentWorkflowInstance.approvals.approver', 'currentWorkflowInstance.workflow'])
             ->findOrFail($id);
 
-        // Visibilité par rôle :
-        // - admin : accès complet
-        // - directeur_cabinet : accès aux documents envoyés à la signature (en attente, signés, rejetés)
-        // - autre utilisateur : uniquement les documents qu'il a créés
-        $isAdmin = $user->hasRole('admin');
-        $isDirector = $user->hasRole('directeur_cabinet');
-        $isAuthor = (string) $document->author_id === (string) $user->id;
-
-        if (!$isAdmin && !$isAuthor && !$isDirector) {
-            abort(403, 'Vous n\'êtes pas autorisé à consulter ce document.');
-        }
-
-        // Le Directeur de Cabinet ne peut consulter que les documents envoyés à la signature.
-        if ($isDirector && !$isAdmin && !$document->submitted_for_signature_at) {
-            abort(403, 'Ce document n\'a pas été envoyé à la signature.');
-        }
+        Access::ensureCanViewDocument($user, $document);
 
         return response()->json([
             'data' => $document,
@@ -185,13 +176,13 @@ public function show(Request $request, string $id): JsonResponse
     public function update(Request $request, string $id): JsonResponse
     {
         $document = Document::findOrFail($id);
+        Access::ensureCanModifyDocument($request->user(), $document);
 
         $validated = $request->validate([
             'subject' => ['sometimes', 'string', 'max:500'],
             'reference' => ['nullable', 'string', 'max:255'],
             'confidentiality' => ['nullable', 'string', 'in:public,interne,confidentiel,secret'],
             'content' => ['nullable', 'string'],
-            'status' => ['sometimes', 'string', 'in:draft,pending,approved,rejected,signed,archived'],
         ]);
 
         $document->update($validated);
@@ -210,9 +201,10 @@ public function show(Request $request, string $id): JsonResponse
         ]);
     }
 
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
         $document = Document::findOrFail($id);
+        Access::ensureCanModifyDocument($request->user(), $document);
         $document->update(['is_deleted' => true]);
 
         return response()->json([
@@ -220,26 +212,29 @@ public function show(Request $request, string $id): JsonResponse
         ]);
     }
 
-    public function history(string $id): JsonResponse
+    public function history(Request $request, string $id): JsonResponse
     {
         $document = Document::findOrFail($id);
+        Access::ensureCanViewDocument($request->user(), $document);
         $histories = $document->histories()->with('user')->orderBy('created_at', 'desc')->paginate(50);
 
         return response()->json(['data' => $histories]);
     }
 
-    public function attachments(string $id): JsonResponse
+    public function attachments(Request $request, string $id): JsonResponse
     {
         $document = Document::findOrFail($id);
+        Access::ensureCanViewDocument($request->user(), $document);
         return response()->json(['data' => $document->attachments]);
     }
 
     public function uploadAttachment(Request $request, string $id): JsonResponse
     {
         $document = Document::findOrFail($id);
+        Access::ensureCanModifyDocument($request->user(), $document);
 
         $validated = $request->validate([
-            'file' => ['required', 'file', 'max:20480'],
+            'file' => ['required', 'file', 'mimes:pdf,doc,docx,odt,jpg,jpeg,png,txt,xls,xlsx', 'max:20480'],
             'type' => ['nullable', 'string', 'in:attachment,annex,appendice'],
         ]);
 
@@ -262,9 +257,10 @@ public function show(Request $request, string $id): JsonResponse
         ], 201);
     }
 
-    public function deleteAttachment(string $id, string $attachmentId): JsonResponse
+    public function deleteAttachment(Request $request, string $id, string $attachmentId): JsonResponse
     {
         $document = Document::findOrFail($id);
+        Access::ensureCanModifyDocument($request->user(), $document);
         $attachment = $document->attachments()->findOrFail($attachmentId);
 
         \Illuminate\Support\Facades\Storage::disk('public')->delete($attachment->stored_path);
@@ -284,7 +280,9 @@ public function show(Request $request, string $id): JsonResponse
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        // Force document_id from route binding
+        $document = Document::findOrFail($id);
+        Access::ensureCanArchive($request->user(), $document);
+
         $validated['document_id'] = (string) $id;
 
         $archive = $this->archiveDocumentUseCase->execute($validated, $request->user());

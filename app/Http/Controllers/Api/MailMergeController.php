@@ -155,6 +155,12 @@ $validated = $request->validate([
 
         // Le document source doit être de type publipostage
         $sourceDocument = Document::query()->findOrFail($validated['document_id']);
+        abort_unless(
+            (string) $sourceDocument->author_id === (string) $request->user()->id
+                || $request->user()->hasRole('admin'),
+            403,
+            'Vous ne pouvez publiposter que vos propres documents.'
+        );
         if ($sourceDocument->flow_type !== 'mail_merge') {
             return response()->json([
                 'message' => 'Seuls les documents de type « publipostage » peuvent être utilisés pour un publipostage.',
@@ -174,7 +180,7 @@ $validated = $request->validate([
         $batch = $this->runMailMergeUseCase->execute($input, $request->user());
 
         $status = match ($batch->status) {
-            'completed', 'partial', 'awaiting_workflow' => 201,
+            'completed', 'partial', 'awaiting_workflow', 'pending_signature', 'signed' => 201,
             default => 422,
         };
 
@@ -185,6 +191,8 @@ $validated = $request->validate([
             'completed' => 'Publipostage généré : ' . $batch->generated_count . ' document(s) sur ' . $batch->total_recipients . '.',
             'partial' => 'Publipostage partiellement généré : ' . $batch->generated_count . ' document(s) sur ' . $batch->total_recipients . '.',
             'awaiting_workflow' => 'Campagne de publipostage créée. Le workflow de validation du document source a été démarré.',
+            'pending_signature' => 'Publipostage généré : ' . $batch->generated_count . ' document(s) sur ' . $batch->total_recipients . '. En attente de signature.',
+            'signed' => 'Publipostage généré et signé : ' . $batch->generated_count . ' document(s).',
             default => $firstError ?: 'Échec du publipostage. Aucun document généré.',
         };
 
@@ -202,18 +210,19 @@ $validated = $request->validate([
             'recipients_file' => ['required', 'file', 'mimes:xls,xlsx,txt,csv,tsv', 'max:10240'],
         ]);
 
-        $path = $request->file('recipients_file')->store('mailmerge/preview', 'public');
-        $fullPath = Storage::disk('public')->path($path);
-        $originalName = $request->file('recipients_file')->getClientOriginalName();
+        $file = $request->file('recipients_file');
+        $fullPath = $file->getRealPath();
+        $originalName = $file->getClientOriginalName();
+
+        if ($fullPath === false) {
+            return response()->json(['message' => 'Fichier illisible.'], 422);
+        }
 
         try {
             $preview = $this->recipientFileParser->preview($fullPath, $originalName);
         } catch (\Throwable $e) {
-            Storage::disk('public')->delete($path);
             return response()->json(['message' => 'Fichier illisible : ' . $e->getMessage()], 422);
         }
-
-        Storage::disk('public')->delete($path);
 
         return response()->json(['data' => $preview]);
     }
@@ -226,6 +235,10 @@ $validated = $request->validate([
             ->where('flow_type', 'mail_merge')
             ->where('is_deleted', false)
             ->whereIn('status', ['draft', 'approved', 'signed'])
+            ->when(
+                ! $request->user()->hasRole('admin'),
+                fn ($q) => $q->where('author_id', $request->user()->id)
+            )
             ->when($request->search, fn ($q, $term) => $q->search($term))
             ->orderBy('updated_at', 'desc')
             ->limit(100)
@@ -374,19 +387,21 @@ $validated = $request->validate([
         return response()->json(['message' => 'Campagne de publipostage supprimée.']);
     }
 
-private function authorizeBatch(MailMergeBatch $batch, ?User $user): void
+    private function authorizeBatch(MailMergeBatch $batch, ?User $user): void
     {
-        if (!$user) {
-            return;
-        }
+        abort_unless($user, 401, 'Authentification requise.');
 
-        // Le Directeur de Cabinet peut consulter les campagnes envoyées à la signature
-        // (en attente de signature, signées ou rejetées).
         if ($user->hasRole('directeur_cabinet')) {
+            abort_unless(
+                in_array($batch->status, ['pending_signature', 'signed', 'rejected'], true),
+                403,
+                'Cette campagne n\'est pas destinée à la signature.'
+            );
+
             return;
         }
 
-        if ($batch->created_by !== $user->id && !$user->hasRole('admin')) {
+        if ($batch->created_by !== $user->id && ! $user->hasRole('admin')) {
             abort(403, 'Cette campagne ne vous appartient pas.');
         }
     }

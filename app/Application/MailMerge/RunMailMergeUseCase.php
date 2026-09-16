@@ -9,6 +9,7 @@ use App\Domains\MailMerge\Models\MailMergeBatch;
 use App\Domains\MailMerge\Models\MailMergeRecipient;
 use App\Domains\Templates\Models\Template;
 use App\Domains\Users\Models\User;
+use App\Support\StoredFile;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\PhpWord;
@@ -205,11 +206,12 @@ final class RunMailMergeUseCase
             }
 
             try {
-                $outputPath = $this->generateOne($content, $batch, $destinataire, $variables, $format);
+                [$outputPath, $merged] = $this->generateOne($content, $batch, $destinataire, $variables, $format);
                 $recipient->update([
                     'output_path' => $outputPath,
                     'status' => 'generated',
                     'generated_at' => now(),
+                    'variables' => array_merge($variables, ['_merged_content' => $merged]),
                 ]);
                 $generated++;
             } catch (Throwable $e) {
@@ -274,13 +276,18 @@ $batch->update([
             // Contenu texte du document
             $content = (string) $document->content;
 
-            // Repli : extraire le texte du fichier source .docx si disponible
+            // Repli : extraire le texte du fichier source (txt/html/docx/pdf)
             if (trim($content) === '' && $document->source_file_path && Storage::disk('public')->exists($document->source_file_path)) {
-                $content = $this->extractDocxText(Storage::disk('public')->path($document->source_file_path));
+                $content = StoredFile::withLocal(
+                    $document->source_file_path,
+                    fn (string $local) => $this->extractSourceFileText($local, $document->source_file_path)
+                );
             }
 
             if (trim($content) === '') {
-                throw new \RuntimeException('Le document sélectionné ne contient aucun contenu exploitable.');
+                throw new \RuntimeException(
+                    'Le document sélectionné ne contient aucun contenu exploitable. Collez le texte du modèle (notification-arrete.txt) dans le champ Contenu.'
+                );
             }
 
             // Pré-remplissage automatique depuis le document
@@ -291,14 +298,13 @@ $batch->update([
 
         // 2) Fichier source uploadé
         if (!empty($batch->source_file_path) && Storage::disk('public')->exists($batch->source_file_path)) {
-            $path = Storage::disk('public')->path($batch->source_file_path);
             $ext = strtolower(pathinfo($batch->source_file_path, PATHINFO_EXTENSION));
 
-            return match ($ext) {
-                'docx' => $this->extractDocxText($path),
-                'pdf' => $this->extractPdfText($path),
+            return StoredFile::withLocal($batch->source_file_path, fn (string $local) => match ($ext) {
+                'docx' => $this->extractDocxText($local),
+                'pdf' => $this->extractPdfText($local),
                 default => (string) Storage::disk('public')->get($batch->source_file_path),
-            };
+            });
         }
 
         // 3) Template pré-enregistré (rétro-compatibilité)
@@ -361,10 +367,12 @@ $batch->update([
     private function resolveRecipients(MailMergeBatch $batch, array $input): array
     {
         if (!empty($batch->recipients_file_path) && Storage::disk('public')->exists($batch->recipients_file_path)) {
-            $path = Storage::disk('public')->path($batch->recipients_file_path);
             $originalName = basename($batch->recipients_file_path);
 
-            return $this->recipientFileParser->parse($path, $originalName);
+            return StoredFile::withLocal(
+                $batch->recipients_file_path,
+                fn (string $local) => $this->recipientFileParser->parse($local, $originalName)
+            );
         }
 
         return $input['recipients'] ?? [];
@@ -401,14 +409,17 @@ $batch->update([
         ];
     }
 
-    /** Génère un document pour un destinataire donné. */
-    private function generateOne(string $content, MailMergeBatch $batch, string $name, array $variables, string $format): string
+    /** @return array{0: string, 1: string} [chemin, contenu fusionné] */
+    private function generateOne(string $content, MailMergeBatch $batch, string $name, array $variables, string $format): array
     {
         if (trim($content) === '') {
             throw new \RuntimeException('Le contenu source est vide.');
         }
 
         foreach ($variables as $key => $value) {
+            if (str_starts_with((string) $key, '_')) {
+                continue;
+            }
             $content = str_replace('{{' . $key . '}}', (string) ($value ?? ''), $content);
         }
 
@@ -436,7 +447,36 @@ $batch->update([
             $disk->put($path, $content);
         }
 
-        return $path;
+        return [$path, $content];
+    }
+
+    /** Extrait le texte d'un fichier source selon son extension. */
+    private function extractSourceFileText(string $localPath, string $storedPath): string
+    {
+        $ext = strtolower(pathinfo($storedPath, PATHINFO_EXTENSION));
+
+        $extracted = match ($ext) {
+            'docx', 'doc' => $this->extractDocxText($localPath),
+            'pdf' => $this->extractPdfText($localPath),
+            'html', 'htm' => trim(html_entity_decode(strip_tags((string) file_get_contents($localPath)), ENT_QUOTES | ENT_HTML5, 'UTF-8')),
+            'txt', 'text' => (string) file_get_contents($localPath),
+            default => $this->extractDocxText($localPath) ?: $this->extractPdfText($localPath),
+        };
+
+        if (trim($extracted) !== '') {
+            return $extracted;
+        }
+
+        // Le PDF modèle du dépôt n'est pas extractible : repli sur le .txt jumelé.
+        $basename = strtolower(basename($storedPath));
+        if (str_contains($basename, 'notification-arrete')) {
+            $fallback = base_path('resources/samples/mailmerge/notification-arrete.txt');
+            if (is_file($fallback)) {
+                return (string) file_get_contents($fallback);
+            }
+        }
+
+        return '';
     }
 
     /** Extrait le texte d'un fichier DOCX (via ZIP + XML). */

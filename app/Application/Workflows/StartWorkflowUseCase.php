@@ -28,6 +28,12 @@ final class StartWorkflowUseCase
         $workflow = Workflow::findOrFail($input['workflow_id']);
         $document = Document::findOrFail($input['document_id']);
 
+        abort_unless(
+            (string) $document->author_id === (string) $actor->id || $actor->hasRole('admin'),
+            403,
+            'Seul l\'auteur du document peut démarrer un workflow.'
+        );
+
         // Guard 1: document type compatibility (best-effort; workflow holds document_type)
         // Pour le publipostage, le document source est un document métier de type `mail_merge`
         // et le workflow de campagne peut être paramétré indépendamment du type métier.

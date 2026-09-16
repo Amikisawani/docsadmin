@@ -6,6 +6,7 @@ use App\Domains\Signatures\Models\Signature;
 use App\Domains\Signatures\Models\DocumentSignature;
 use App\Domains\Documents\Models\Document;
 use App\Http\Controllers\Controller;
+use App\Support\Access;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -72,12 +73,14 @@ class SignatureController extends Controller
     public function show(string $id): JsonResponse
     {
         $signature = Signature::with('user', 'documentSignatures')->findOrFail($id);
+        Access::ensureCanManageSignature(request()->user(), $signature);
         return response()->json(['data' => $signature]);
     }
 
     public function update(Request $request, string $id): JsonResponse
     {
         $signature = Signature::findOrFail($id);
+        Access::ensureCanManageSignature($request->user(), $signature);
 
         $validated = $request->validate([
             'label' => ['nullable', 'string', 'max:255'],
@@ -101,6 +104,7 @@ class SignatureController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $signature = Signature::findOrFail($id);
+        Access::ensureCanManageSignature(request()->user(), $signature);
 
         if ($signature->image_path) {
             Storage::disk('public')->delete($signature->image_path);
@@ -147,9 +151,10 @@ class SignatureController extends Controller
     }
 
 
-    public function verifyDocument(string $documentId): JsonResponse
+    public function verifyDocument(Request $request, string $documentId): JsonResponse
     {
         $document = Document::with(['signatures.signer', 'signatures.signature'])->findOrFail($documentId);
+        Access::ensureCanViewDocument($request->user(), $document);
 
         $verification = [
             'document' => [

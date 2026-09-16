@@ -65,6 +65,13 @@ final class SignDocumentUseCase
             return $existing->load(['document', 'signature', 'signer']);
         }
 
+        // Guard: document must have been submitted for signature
+        abort_unless(
+            $document->submitted_for_signature_at !== null && $document->status === 'pending',
+            409,
+            'Ce document n\'est pas en attente de signature.'
+        );
+
         // Guard: document must not be deleted
         abort_unless((bool)$document->is_deleted === false, 409, 'Document supprimé.');
 

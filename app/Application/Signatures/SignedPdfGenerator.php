@@ -5,6 +5,7 @@ namespace App\Application\Signatures;
 use App\Domains\Documents\Models\Document;
 use App\Domains\Signatures\Models\Signature;
 use App\Domains\Users\Models\User;
+use App\Support\StoredFile;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -112,13 +113,10 @@ HTML;
     private function buildBodyHtml(Document $document): string
     {
         // 1) Si un fichier Word source (.docx) est présent, tenter d'extraire le texte.
-        if ($document->source_file_path) {
-            $full = storage_path('app/public/' . $document->source_file_path);
-            if (is_file($full)) {
-                $extracted = $this->extractDocxText($full);
-                if ($extracted !== null && trim($extracted) !== '') {
-                    return $extracted;
-                }
+        if ($document->source_file_path && Storage::disk('public')->exists($document->source_file_path)) {
+            $extracted = StoredFile::withLocal($document->source_file_path, fn (string $local) => $this->extractDocxText($local));
+            if ($extracted !== null && trim($extracted) !== '') {
+                return $extracted;
             }
         }
 
@@ -194,14 +192,15 @@ HTML;
             return null;
         }
 
-        $full = storage_path('app/public/' . $signature->image_path);
-        if (!is_file($full)) {
+        $disk = Storage::disk('public');
+        if (! $disk->exists($signature->image_path)) {
             return null;
         }
 
-        $mime = mime_content_type($full) ?: 'image/png';
+        $bytes = $disk->get($signature->image_path);
+        $mime = $disk->mimeType($signature->image_path) ?: 'image/png';
 
-        return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($full));
+        return 'data:'.$mime.';base64,'.base64_encode((string) $bytes);
     }
 
     private function e(?string $value): string

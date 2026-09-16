@@ -22,6 +22,8 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, HasRoles, HasUlids, Notifiable;
 
+    protected string $guard_name = 'web';
+
     protected $fillable = [
         'name',
         'email',
@@ -34,9 +36,6 @@ class User extends Authenticatable
         'signature_path',
         'signature_image_path',
         'status',
-        'two_factor_secret',
-        'two_factor_recovery_codes',
-        'two_factor_confirmed_at',
     ];
 
     protected $hidden = [

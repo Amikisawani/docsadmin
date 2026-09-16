@@ -458,7 +458,7 @@ async function onRecipientsFileChange(e: Event) {
   const fd = new FormData();
   fd.append("recipients_file", form.value.recipients_file);
   try {
-    const { data } = await apiClient.post("/mail-merge/preview", fd, { headers: { "Content-Type": "multipart/form-data" } });
+    const { data } = await apiClient.post("/mail-merge/preview", fd);
     preview.value = data.data;
     // Pré-remplir les variables globales depuis les en-têtes détectés
     for (const h of data.data.headers) {
@@ -521,7 +521,9 @@ if (!form.value.document_id) {
     fd.append("format", form.value.format);
 
     fd.append("document_id", form.value.document_id);
-    fd.append("workflow_id", form.value.workflow_id);
+    if (form.value.workflow_id) {
+      fd.append("workflow_id", form.value.workflow_id);
+    }
 
     if (form.value.recipients_file) fd.append("recipients_file", form.value.recipients_file);
 
@@ -533,11 +535,22 @@ if (!form.value.document_id) {
       fd.append("default_variables", JSON.stringify(cleanVars));
     }
 
-    await apiClient.post("/mail-merge", fd, { headers: { "Content-Type": "multipart/form-data" } });
+    const { data } = await apiClient.post("/mail-merge", fd);
     closeForm();
     await loadBatches();
+    return data;
   } catch (e: any) {
-    error.value = e.response?.data?.message || "Erreur lors du publipostage";
+    const payload = e.response?.data;
+    const generated = Number(payload?.data?.generated_count || 0);
+    if (generated > 0) {
+      closeForm();
+      await loadBatches();
+      return;
+    }
+    const details = Array.isArray(payload?.errors)
+      ? payload.errors.filter((item: unknown) => typeof item === "string" && item.trim() !== "").join(" ")
+      : "";
+    error.value = [payload?.message, details].filter(Boolean).join(" — ") || "Erreur lors du publipostage";
   } finally {
     saving.value = false;
   }

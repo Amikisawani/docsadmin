@@ -87,7 +87,7 @@
               </p>
             </div>
             <div class="task-card-actions">
-              <router-link :to="`/documents/${doc.id}`" class="btn-primary btn-sm">
+              <router-link :to="signableDocumentLink(doc.id)" class="btn-primary btn-sm">
                 Signer
               </router-link>
             </div>
@@ -123,7 +123,7 @@
               </p>
             </div>
             <div class="task-card-actions">
-              <router-link :to="`/mail-merge`" class="btn-primary btn-sm">
+              <router-link :to="campaignLink(batch.id)" class="btn-primary btn-sm">
                 Voir la campagne
               </router-link>
             </div>
@@ -179,7 +179,18 @@ function documentLink(approval: WorkflowApproval): string {
     (approval.workflowInstance as any)?.document_id ||
     (approval as any)?.document_id ||
     "";
+  if (authStore.hasRole("directeur_cabinet")) {
+    return id ? `/director/documents/${id}` : "/director";
+  }
   return id ? `/documents/${id}` : "/";
+}
+
+function signableDocumentLink(id: string): string {
+  return authStore.hasRole("directeur_cabinet") ? `/director/documents/${id}` : `/documents/${id}`;
+}
+
+function campaignLink(id: string): string {
+  return authStore.hasRole("directeur_cabinet") ? `/director/campaigns/${id}` : "/mail-merge";
 }
 
 async function remind(approval: WorkflowApproval) {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domains\Templates\Models\Template;
 use App\Http\Controllers\Controller;
+use App\Support\Access;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -80,6 +81,11 @@ class TemplateController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $template = Template::findOrFail($id);
+        abort_unless(
+            Access::isAdmin($request->user()) || (string) $template->created_by === (string) $request->user()->id,
+            403,
+            'Vous n\'êtes pas autorisé à modifier ce modèle.'
+        );
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
@@ -124,9 +130,14 @@ class TemplateController extends Controller
         ]);
     }
 
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
         $template = Template::findOrFail($id);
+        abort_unless(
+            Access::isAdmin($request->user()) || (string) $template->created_by === (string) $request->user()->id,
+            403,
+            'Vous n\'êtes pas autorisé à supprimer ce modèle.'
+        );
         Storage::disk('public')->delete($template->file_path);
         $template->delete();
 

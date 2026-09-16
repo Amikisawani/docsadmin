@@ -46,7 +46,6 @@ router.beforeEach((to, _from, next) => {
         } else {
             notifStore.startPolling();
         }
-        notifStore.fetchUnreadCount();
     }
 
     next();

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domains\Authentication\Actions\LoginAction;
-use App\Domains\Authentication\Actions\RegisterUserAction;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,7 +13,6 @@ class AuthController extends Controller
 {
     public function __construct(
         private readonly LoginAction $loginAction,
-        private readonly RegisterUserAction $registerUserAction,
     ) {}
 
     public function login(Request $request): JsonResponse
@@ -57,34 +55,15 @@ class AuthController extends Controller
         ]);
     }
 
-    public function register(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'department_id' => ['nullable', 'string', 'exists:departments,id'],
-            'job_title' => ['nullable', 'string', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:20'],
-            'role' => ['nullable', 'string', 'exists:roles,name'],
-        ]);
-
-        $user = $this->registerUserAction->execute($validated);
-
-        return response()->json([
-            'message' => 'Utilisateur créé avec succès.',
-            'data' => $user->load('department', 'roles'),
-        ], 201);
-    }
-
     public function forgotPassword(Request $request): JsonResponse
     {
         $request->validate(['email' => 'required|email']);
 
-        $status = Password::sendResetLink($request->only('email'));
+        Password::sendResetLink($request->only('email'));
 
+        // Réponse uniforme : ne pas révéler si l'email existe.
         return response()->json([
-            'message' => __($status),
+            'message' => 'Si un compte correspond à cette adresse, un lien de réinitialisation a été envoyé.',
         ]);
     }
 
@@ -99,12 +78,12 @@ class AuthController extends Controller
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function ($user, $password) {
-                $user->forceFill(['password' => bcrypt($password)])->save();
+                $user->forceFill(['password' => $password])->save();
             }
         );
 
         return response()->json([
             'message' => __($status),
-        ]);
+        ], $status === Password::PASSWORD_RESET ? 200 : 422);
     }
 }
